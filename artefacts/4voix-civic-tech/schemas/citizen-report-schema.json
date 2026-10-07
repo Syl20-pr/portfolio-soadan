@@ -1,0 +1,57 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "CivicTelemetry_IncidentReport_Schema",
+  "description": "Anonymized, peer-verifiable civic incident schema for African municipalities.",
+  "type": "object",
+  "required": [
+    "reportId",
+    "timestampEpoch",
+    "category",
+    "anonymizedLocation",
+    "verificationStatus",
+    "urgencyLevel"
+  ],
+  "properties": {
+    "reportId": {
+      "type": "string",
+      "pattern": "^CIVIC-TGO-[0-9A-F]{8}$"
+    },
+    "timestampEpoch": {
+      "type": "integer"
+    },
+    "category": {
+      "type": "string",
+      "enum": [
+        "WATER_SANITATION",
+        "ROAD_INFRASTRUCTURE",
+        "ELECTRICAL_GRID",
+        "PUBLIC_HEALTH_HAZARD",
+        "PUBLIC_LIGHTING",
+        "ENVIRONMENTAL_WASTE"
+      ]
+    },
+    "anonymizedLocation": {
+      "type": "object",
+      "required": ["municipality", "subDistrictGeohash", "approxLatitude", "approxLongitude", "precisionRadiusMeters"],
+      "properties": {
+        "municipality": { "type": "string" },
+        "subDistrictGeohash": { "type": "string" },
+        "approxLatitude": { "type": "number" },
+        "approxLongitude": { "type": "number" },
+        "precisionRadiusMeters": { "type": "number", "minimum": 800 }
+      }
+    },
+    "verificationStatus": {
+      "type": "string",
+      "enum": ["PENDING_PEER_CONFIRMATION", "COMMUNITY_CONFIRMED", "ESCALATED_TO_MUNICIPALITY", "RESOLVED"]
+    },
+    "communityEndorsements": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "urgencyLevel": {
+      "type": "string",
+      "enum": ["LOW", "MEDIUM", "HIGH", "CRITICAL_CIVIC_HAZARD"]
+    }
+  }
+}

@@ -1,0 +1,82 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "AfricanAIPassport",
+  "description": "Standardized cryptographic specification for auditing and certifying AI models deployed across African public and strategic private services.",
+  "type": "object",
+  "required": [
+    "passport_version",
+    "system_identification",
+    "governance_and_legal",
+    "training_data_provenance",
+    "fairness_metrics",
+    "risk_classification",
+    "cryptographic_verification"
+  ],
+  "properties": {
+    "passport_version": {
+      "type": "string",
+      "enum": ["1.0-draft", "1.0-release"]
+    },
+    "system_identification": {
+      "type": "object",
+      "required": ["model_name", "version", "developer_entity", "deployment_jurisdiction"],
+      "properties": {
+        "model_name": { "type": "string" },
+        "version": { "type": "string" },
+        "developer_entity": { "type": "string" },
+        "deployment_jurisdiction": { "type": "string", "description": "ISO 3166-1 alpha-2 country code (e.g., TG, SN, RW, GH)" },
+        "intended_use": { "type": "string" }
+      }
+    },
+    "governance_and_legal": {
+      "type": "object",
+      "required": ["au_ai_strategy_aligned", "data_residence_country", "human_oversight_mechanism"],
+      "properties": {
+        "au_ai_strategy_aligned": { "type": "boolean" },
+        "malabo_convention_compliance": { "type": "boolean" },
+        "data_residence_country": { "type": "string" },
+        "human_oversight_mechanism": {
+          "type": "string",
+          "enum": ["Human-in-the-loop", "Human-on-the-loop", "Human-in-command"]
+        }
+      }
+    },
+    "training_data_provenance": {
+      "type": "object",
+      "required": ["dataset_sha256_hash", "local_languages_included", "anonymization_standard"],
+      "properties": {
+        "dataset_name": { "type": "string" },
+        "dataset_sha256_hash": { "type": "string" },
+        "local_languages_included": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "anonymization_standard": { "type": "string" }
+      }
+    },
+    "fairness_metrics": {
+      "type": "object",
+      "required": ["disparate_impact_ratio", "demographic_parity_difference", "trust_score"],
+      "properties": {
+        "disparate_impact_ratio": { "type": "number", "minimum": 0, "maximum": 2 },
+        "demographic_parity_difference": { "type": "number", "minimum": -1, "maximum": 1 },
+        "equalized_odds_difference": { "type": "number" },
+        "trust_score": { "type": "integer", "minimum": 0, "maximum": 100 }
+      }
+    },
+    "risk_classification": {
+      "type": "string",
+      "enum": ["MINIMAL", "SPECIFIC", "HIGH_RISK_PUBLIC_SERVICES", "UNACCEPTABLE"]
+    },
+    "cryptographic_verification": {
+      "type": "object",
+      "required": ["auditor_public_key", "signature", "timestamp_utc"],
+      "properties": {
+        "auditor_name": { "type": "string" },
+        "auditor_public_key": { "type": "string" },
+        "signature": { "type": "string" },
+        "timestamp_utc": { "type": "string", "format": "date-time" }
+      }
+    }
+  }
+}

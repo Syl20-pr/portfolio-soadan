@@ -1,0 +1,6 @@
+# Artefacts publics : affichés comme du texte dans le navigateur (jamais exécutés).
+Options -Indexes -ExecCGI
+AddDefaultCharset UTF-8
+<IfModule mod_mime.c>
+    AddType "text/plain; charset=UTF-8" .py .md
+</IfModule>

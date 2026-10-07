@@ -1,0 +1,75 @@
+# =============================================================================
+#  Portfolio SOADAN Koffi Sylvain (SKS) — Configuration Apache (racine)
+# =============================================================================
+
+# --- Encodage par défaut ------------------------------------------------------
+AddDefaultCharset UTF-8
+
+# --- Page d'accueil -----------------------------------------------------------
+DirectoryIndex index.php index.html
+
+# --- Réécriture ---------------------------------------------------------------
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+
+    # Ne jamais réécrire une ressource qui existe réellement.
+    RewriteCond %{REQUEST_FILENAME} -f [OR]
+    RewriteCond %{REQUEST_FILENAME} -d
+    RewriteRule ^ - [L]
+
+    # Pages du portfolio : /about -> /about.php, /en/about -> /en/about.php,
+    # /projects/bitc -> /projects/bitc.php (URLs sans extension, tous dossiers).
+    RewriteCond %{REQUEST_FILENAME}.php -f
+    RewriteRule ^(.+?)/?$ $1.php [L,QSA]
+</IfModule>
+
+# --- Protection des fichiers sensibles ---------------------------------------
+# (Les fichiers .py / README.md de artefacts/ sont des pièces publiques du portfolio.)
+<FilesMatch "^(\.env|\.env\..*|composer\.(json|lock)|\.gitignore)$">
+    Require all denied
+</FilesMatch>
+
+# Bloquer l'accès aux fichiers de sauvegarde et temporaires.
+<FilesMatch "\.(sql|log|bak|tmp|ini|sh|bat)$">
+    Require all denied
+</FilesMatch>
+
+# --- Interdire le listage des répertoires ------------------------------------
+Options -Indexes
+
+# --- En-têtes de sécurité -----------------------------------------------------
+<IfModule mod_headers.c>
+    Header always set X-Content-Type-Options "nosniff"
+    Header always set X-Frame-Options "SAMEORIGIN"
+    Header always set Referrer-Policy "strict-origin-when-cross-origin"
+    Header always set Permissions-Policy "geolocation=(), microphone=(), camera=()"
+
+    # HSTS : à activer uniquement lorsque le certificat SSL est installé.
+    # Header always set Strict-Transport-Security "max-age=31536000; includeSubDomains"
+</IfModule>
+
+# --- Redirection HTTPS (à activer quand le SSL est disponible) ----------------
+# <IfModule mod_rewrite.c>
+#     RewriteEngine On
+#     RewriteCond %{HTTPS} !=on
+#     RewriteCond %{HTTP:X-Forwarded-Proto} !https
+#     RewriteRule ^ https://%{HTTP_HOST}%{REQUEST_URI} [L,R=301]
+# </IfModule>
+
+# --- Compression --------------------------------------------------------------
+<IfModule mod_deflate.c>
+    AddOutputFilterByType DEFLATE text/html text/css text/plain text/xml
+    AddOutputFilterByType DEFLATE application/javascript application/json
+    AddOutputFilterByType DEFLATE image/svg+xml
+</IfModule>
+
+# --- Cache navigateur ---------------------------------------------------------
+<IfModule mod_expires.c>
+    ExpiresActive On
+    ExpiresByType text/css "access plus 1 month"
+    ExpiresByType application/javascript "access plus 1 month"
+    ExpiresByType image/png "access plus 1 month"
+    ExpiresByType image/jpeg "access plus 1 month"
+    ExpiresByType image/svg+xml "access plus 1 month"
+    ExpiresByType application/pdf "access plus 1 week"
+</IfModule>
