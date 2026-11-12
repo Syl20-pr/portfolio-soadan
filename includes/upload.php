@@ -28,6 +28,9 @@ define('UPLOAD_AUDIO_TYPES', ['audio/mpeg' => 'mp3', 'audio/mp4' => 'm4a', 'audi
                               'audio/ogg' => 'ogg', 'audio/vorbis' => 'oga']);
 define('UPLOAD_MAX_VIDEO_BYTES', (int) env('MB_MAX_UPLOAD_VIDEO', 64) * 1024 * 1024);
 define('UPLOAD_MAX_AUDIO_BYTES', (int) env('MB_MAX_UPLOAD_AUDIO', 24) * 1024 * 1024);
+// Sous-titres WebVTT (vidéo de présentation) — petit plafond fixe.
+define('UPLOAD_VTT_TYPE', 'text/vtt');
+define('UPLOAD_MAX_VTT_BYTES', 512 * 1024); // 512 Ko
 
 /**
  * Retourne le répertoire absolu d'une catégorie d'upload (créé si absent).
@@ -37,8 +40,9 @@ function upload_dir(string $kind): string
     $sub = [
         'image' => 'images',
         'cv'    => 'cv',
-        'video' => 'media',   // capsules MP4 des Actualités
-        'audio' => 'media',   // podcasts MP3/M4A des Actualités
+        'video' => 'media',   // capsules MP4 (Actualités, accueil)
+        'audio' => 'media',   // podcasts MP3/M4A
+        'vtt'   => 'media',   // sous-titres WebVTT
     ][$kind] ?? 'misc';
     $dir = ROOT_PATH . DIRECTORY_SEPARATOR . 'uploads' . DIRECTORY_SEPARATOR . $sub;
     if (!is_dir($dir)) {
@@ -77,6 +81,7 @@ function upload_handle($file, string $kind): array
         'cv'    => UPLOAD_MAX_BYTES,
         'video' => UPLOAD_MAX_VIDEO_BYTES,
         'audio' => UPLOAD_MAX_AUDIO_BYTES,
+        'vtt'   => UPLOAD_MAX_VTT_BYTES,
     ][$kind] ?? UPLOAD_MAX_BYTES;
     if ($size <= 0 || $size > $kindMax) {
         return ['ok' => false, 'error' => 'too_large', 'filename' => '', 'mime' => ''];
@@ -121,6 +126,13 @@ function upload_handle($file, string $kind): array
             return ['ok' => false, 'error' => 'bad_type', 'filename' => '', 'mime' => $mime];
         }
         $ext = UPLOAD_AUDIO_TYPES[$mime];
+    } elseif ($kind === 'vtt') {
+        // finfo détecte parfois text/plain : vérifie aussi le contenu.
+        $head = (string) @file_get_contents($tmp, false, null, 0, 64);
+        if (!str_starts_with(trim($head), 'WEBVTT')) {
+            return ['ok' => false, 'error' => 'bad_type', 'filename' => '', 'mime' => $mime];
+        }
+        $ext = 'vtt';
     } else {
         return ['ok' => false, 'error' => 'bad_kind', 'filename' => '', 'mime' => $mime];
     }

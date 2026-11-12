@@ -2236,9 +2236,87 @@ table.data caption {
   background: linear-gradient(transparent, rgba(10, 36, 59, .92));
 }
 
+/* Image de secours (aucune photo configurée). */
+.banner-fallback img { width: 100%; height: 100%; object-fit: cover; display: block; opacity: .92; }
+
+/* Flèches + points de navigation. */
+.banner-arrow {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 5;
+  background: rgba(10, 36, 59, .55);
+  color: #fff;
+  border: 0;
+  border-radius: 50%;
+  width: 40px;
+  height: 40px;
+  font-size: 22px;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity .25s var(--ease);
+}
+
+.banner-prev { left: 12px; }
+.banner-next { right: 12px; }
+
+.banner-stage:hover .banner-arrow,
+.banner-stage:focus-within .banner-arrow { opacity: 1; }
+
+.banner-arrow:hover { background: var(--green); }
+
+.banner-dots {
+  position: absolute;
+  bottom: 10px;
+  left: 0;
+  right: 0;
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+  z-index: 5;
+}
+
+.banner-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  border: 0;
+  background: rgba(255, 255, 255, .45);
+  cursor: pointer;
+  padding: 0;
+}
+
+.banner-dot.is-active { background: var(--gold); transform: scale(1.2); }
+
+/* Transition « glissement » (home_transition = slide). */
+.banner[data-transition="slide"] .banner-slide {
+  opacity: 1;
+  transform: translateX(100%);
+  transition: transform .6s var(--ease);
+}
+
+.banner[data-transition="slide"] .banner-slide.is-active { transform: translateX(0); }
+
+/* Section vidéo de présentation. */
+.c2l-play {
+  position: relative;
+  z-index: 2;
+  background: var(--green);
+  color: #fff;
+  border: 0;
+  border-radius: 26px;
+  padding: 12px 22px;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 15px;
+}
+
+.c2l-play:hover { background: var(--green-600); }
+
 /* Mobile : stage plein cadre, balayage natif si reduced-motion. */
 @media (max-width: 700px) {
   .banner-stage { aspect-ratio: 4 / 3; width: 100%; }
+  .banner-arrow { opacity: .85; width: 34px; height: 34px; }
 }
 
 @media (prefers-reduced-motion: reduce) {

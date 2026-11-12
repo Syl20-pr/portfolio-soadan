@@ -591,3 +591,40 @@ sqlite_add_col($pdo, 'news_items', 'body_html_en', 'TEXT');
 sqlite_add_col($pdo, 'news_items', 'location_en', "TEXT NOT NULL DEFAULT ''");
 echo "✔ Migration 003 (bilinguisme) appliquée.\n";
 
+// ============================================================================
+//  Migration 005 — accueil : photos dédiées + vidéo de présentation
+// ============================================================================
+$pdo->exec("
+    CREATE TABLE IF NOT EXISTS home_photos (
+        id          INTEGER PRIMARY KEY AUTOINCREMENT,
+        filename    TEXT    NOT NULL,
+        caption_fr  TEXT    NOT NULL DEFAULT '',
+        caption_en  TEXT    NOT NULL DEFAULT '',
+        alt_fr      TEXT    NOT NULL DEFAULT '',
+        alt_en      TEXT    NOT NULL DEFAULT '',
+        active      INTEGER NOT NULL DEFAULT 1,
+        sort_order  INTEGER NOT NULL DEFAULT 0,
+        created_at  TEXT    NOT NULL DEFAULT (datetime('now'))
+    )
+");
+$pdo->exec("
+    CREATE TABLE IF NOT EXISTS home_video (
+        id           INTEGER PRIMARY KEY AUTOINCREMENT,
+        lang         TEXT    NOT NULL UNIQUE,
+        enabled      INTEGER NOT NULL DEFAULT 0,
+        source_kind  TEXT    NOT NULL DEFAULT 'embed',
+        embed_url    TEXT,
+        media_file   TEXT,
+        media_mime   TEXT,
+        poster_image TEXT,
+        vtt_file     TEXT,
+        title        TEXT    NOT NULL DEFAULT '',
+        excerpt      TEXT    NOT NULL DEFAULT '',
+        updated_at   TEXT    NOT NULL DEFAULT (datetime('now'))
+    )
+");
+$stmtSet->execute(['home_slide_seconds', '6']);
+$stmtSet->execute(['home_transition', 'fade']);
+$stmtSet->execute(['home_video_enabled', '1']);
+echo "✔ Migration 005 (accueil) appliquée.\n";
+

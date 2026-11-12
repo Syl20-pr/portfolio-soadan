@@ -14,6 +14,7 @@ function admin_header(string $title, string $active = ''): void
 {
   $nav = [
     'index' => 'Tableau de bord',
+    'home' => 'Accueil',
     'articles' => 'Publications',
     'news' => 'Actualités',
     'projects' => 'Projets',

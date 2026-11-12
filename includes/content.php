@@ -441,27 +441,41 @@ function project_save(PDO $pdo, array $data): int
 function banner_data(): array
 {
     $enabled = setting('banner_enabled', '1') === '1';
-    $speed   = (int) setting('banner_speed_seconds', '40');
-    $speed   = ($speed >= 10 && $speed <= 300) ? $speed : 40;
+    $speed   = (int) setting('home_slide_seconds', '6'); // durée PAR PHOTO
+    $speed   = ($speed >= 2 && $speed <= 60) ? $speed : 6;
 
-    $slides = [];
+    $slides  = [];
+    $fallback = false; // image de secours si aucune photo
+
     if ($enabled) {
         try {
-            $stmt = db()->prepare(
-                'SELECT id, filename, caption, caption_en, alt_text, banner_label
-                 FROM gallery_photos WHERE show_home = 1 AND approved = 1
-                 ORDER BY sort_order, id DESC'
-            );
-            $stmt->execute();
-            $slides = $stmt->fetchAll();
+            // 1) Rubrique dédiée « Photos d'accueil » (migration 005).
+            if (db_column_exists('home_photos', 'filename')) {
+                $stmt = db()->query(
+                    'SELECT id, filename, caption_fr AS caption, caption_en, alt_fr AS alt_text
+                     FROM home_photos WHERE active = 1 ORDER BY sort_order, id DESC'
+                );
+                $slides = $stmt->fetchAll();
+            }
+            // 2) Repli : photos de galerie marquées accueil (comportement antérieur).
+            if ($slides === [] && db_column_exists('gallery_photos', 'show_home')) {
+                $stmt = db()->prepare(
+                    'SELECT id, filename, caption, caption_en, alt_text
+                     FROM gallery_photos WHERE show_home = 1 AND approved = 1
+                     ORDER BY sort_order, id DESC'
+                );
+                $stmt->execute();
+                $slides = $stmt->fetchAll();
+            }
         } catch (Throwable $e) {
             log_event('error', 'banner_data: photos unavailable');
             $slides = [];
         }
     }
+    $fallback = ($slides === []); // l'accueil garde une image de secours
 
-    // Drapeaux CHOISIS UNIQUEMENT (jamais tous par défaut) intercalés
-    // toutes les 5 images environ, sans dépasser le nombre de photos.
+    // Drapeaux facultatifs : UNIQUEMENT ceux cochés en admin, intercalés
+    // toutes les 5 photos. Par défaut : aucun.
     $chosen = [];
     foreach (explode(',', setting('banner_flags_codes', '')) as $code) {
         $code = strtoupper(trim($code));
@@ -487,11 +501,42 @@ function banner_data(): array
 
     return [
         'enabled'       => $enabled,
-        'flags_mode'    => 'selected',
+        'transition'    => setting('home_transition', 'fade') === 'slide' ? 'slide' : 'fade',
+        'slide_seconds' => $speed,
         'flags_codes'   => $chosen,
-        'speed_seconds' => $speed,
         'photos'        => [$mixed],
+        'fallback'      => $fallback,
     ];
+}
+
+// -----------------------------------------------------------------------------
+//  Vidéo de présentation de l'accueil (migration 005)
+// -----------------------------------------------------------------------------
+
+/** Vidéo de présentation pour une langue, ou null si absente/désactivée. */
+function home_video_get(string $lang): ?array
+{
+    if (setting('home_video_enabled', '1') !== '1' || !db_column_exists('home_video', 'lang')) {
+        return null;
+    }
+    try {
+        $stmt = db()->prepare('SELECT * FROM home_video WHERE lang = :l LIMIT 1');
+        $stmt->execute([':l' => $lang === 'en' ? 'en' : 'fr']);
+        $row = $stmt->fetch();
+        if ($row === false || !(int) $row['enabled']) {
+            return null; // pas de vidéo EN → rien sur la page EN
+        }
+        if ($row['source_kind'] === 'embed' && !news_embed_valid((string) $row['embed_url'])) {
+            return null;
+        }
+        if ($row['source_kind'] === 'file' && empty($row['media_file'])) {
+            return null;
+        }
+        return $row;
+    } catch (Throwable $e) {
+        log_event('error', 'home_video_get: unavailable');
+        return null;
+    }
 }
 
 // -----------------------------------------------------------------------------
