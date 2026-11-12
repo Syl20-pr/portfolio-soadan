@@ -86,7 +86,7 @@ if ($LANG === 'en') {
         <ul class="footer-links">
           <li><a href="https://www.linkedin.com/in/koffi-sylvain-soadan-747572356/" target="_blank"
               rel="noopener">LinkedIn</a></li>
-          <li><a class="footer-link-disabled" href="#" aria-disabled="true" tabindex="-1">GitHub</a></li>
+          <li><a href="https://github.com/Syl20-pr" target="_blank" rel="noopener">GitHub</a></li>
           <li><a href="mailto:sylvainsoadan3@gmail.com"><?= e($fEmail) ?></a></li>
           <li><a href="<?= e($BASE) ?>cvgenerate.php?lang=<?= $LANG === 'en' ? 'en' : 'fr' ?>" download>CV</a></li>
           <li><a href="<?= e($navBase) ?>contact.php"><?= e($fContact) ?></a></li>

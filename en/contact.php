@@ -51,11 +51,10 @@ require dirname(__DIR__) . DIRECTORY_SEPARATOR . 'includes' . DIRECTORY_SEPARATO
           <li><span class="doc-name">LinkedIn</span><a class="link-inline"
               href="https://www.linkedin.com/in/koffi-sylvain-soadan-747572356/" target="_blank" rel="noopener">LinkedIn
               profile</a></li>
-          <li><span class="doc-name">GitHub</span><span class="doc-meta">Coming soon — link not available</span></li>
+          <li><a class="doc-name" href="https://github.com/Syl20-pr" target="_blank" rel="noopener">GitHub ↗</a><span class="doc-meta">Profiles and source code</span></li>
           <li><span class="doc-name">Location</span><span class="doc-meta">Lomé, Togo</span></li>
         </ul>
-        <p class="note">The GitHub button is intentionally disabled until a valid public URL is available, to avoid
-          any dead link.</p>
+        <p class="note">Find my projects, tools and public repositories on GitHub.</p>
       </div>
       <div>
         <p class="eyebrow">Form</p>

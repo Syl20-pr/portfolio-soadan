@@ -52,11 +52,10 @@ require __DIR__ . DIRECTORY_SEPARATOR . 'includes' . DIRECTORY_SEPARATOR . 'head
           <li><span class="doc-name">LinkedIn</span><a class="link-inline"
               href="https://www.linkedin.com/in/koffi-sylvain-soadan-747572356/" target="_blank" rel="noopener">Profil
               LinkedIn</a></li>
-          <li><span class="doc-name">GitHub</span><span class="doc-meta">Coming soon — lien non disponible</span></li>
+          <li><a class="doc-name" href="https://github.com/Syl20-pr" target="_blank" rel="noopener">GitHub ↗</a><span class="doc-meta">Profils et code source</span></li>
           <li><span class="doc-name">Localisation</span><span class="doc-meta">Lomé, Togo</span></li>
         </ul>
-        <p class="note">Le bouton GitHub est volontairement désactivé tant qu’aucune URL publique valide n’est
-          disponible, afin d’éviter tout lien mort.</p>
+        <p class="note">Retrouvez mes projets, outils et dépôts publics sur GitHub.</p>
       </div>
       <div>
         <p class="eyebrow">Formulaire</p>

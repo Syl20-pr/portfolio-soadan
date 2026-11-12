@@ -291,7 +291,7 @@ require __DIR__ . '/../includes/header.php';
           <li><span class="doc-name">LinkedIn</span><a class="link-inline"
               href="https://www.linkedin.com/in/koffi-sylvain-soadan-747572356/" target="_blank" rel="noopener">LinkedIn
               profile</a></li>
-          <li><span class="doc-name">GitHub</span><span class="doc-meta">Coming soon — link not available</span></li>
+          <li><a class="doc-name" href="https://github.com/Syl20-pr" target="_blank" rel="noopener">GitHub ↗</a><span class="doc-meta">Profiles and source code</span></li>
         </ul>
       </section>
 
