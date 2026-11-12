@@ -134,6 +134,29 @@ try {
 
                 // ---------------------------------------------------------
                 case 'personal_save':
+                    // Photo : interrupteur « afficher sur le PDF » (les deux CV).
+                    if (isset($_POST['photo_show'])) {
+                        cv_photo_set_visible(true);
+                    } else {
+                        cv_photo_set_visible(false);
+                    }
+                    // Titre/profil EN : enregistrés sur la ligne 'en'.
+                    $headlineEn = trim((string) ($_POST['headline_en'] ?? ''));
+                    $summaryEn = trim((string) ($_POST['summary_en'] ?? ''));
+                    if ($headlineEn !== '' || $summaryEn !== '') {
+                        $pen = cv_personal_get('en');
+                        cv_personal_save('en', [
+                            'full_name' => trim((string) ($_POST['full_name'] ?? '')),
+                            'headline' => $headlineEn,
+                            'summary' => $summaryEn,
+                            'email' => trim((string) ($_POST['email'] ?? '')),
+                            'phone' => trim((string) ($_POST['phone'] ?? '')),
+                            'location' => trim((string) ($_POST['location'] ?? '')),
+                            'website' => trim((string) ($_POST['website'] ?? '')),
+                            'linkedin' => trim((string) ($_POST['linkedin'] ?? '')),
+                            'nationality' => trim((string) ($_POST['nationality'] ?? '')),
+                        ] + ($pen !== null ? ['id' => 0] : []));
+                    }
                     $personal = [
                         'full_name' => $clean($_POST['full_name'] ?? '', 160),
                         'headline' => $clean($_POST['headline'] ?? '', 200),
@@ -363,6 +386,8 @@ $cvExperiences = $cvEducation = $cvSkills = $cvCertifications = $cvDistinctions 
 try {
     $photo = cv_photo_get();
     $personal = cv_personal_get($lang);
+    $personalEn = cv_personal_get('en'); // version anglaise (affichage côte à côte)
+    $photo = cv_photo_get() ?? ['show_on_pdf' => 1];
     $sections = cv_sections_get($lang);
     $cvExperiences = experiences_all();
     $cvEducation = education_all();
@@ -484,20 +509,36 @@ if ($flash === '' && $flashQS !== '') {
   <?php endif; ?>
 </div>
 
-<!-- ======================= INFORMATIONS PERSONNELLES ======================= -->
+<!-- ======================= INFORMATIONS PERSONNELLES (FR | EN) ======================= -->
 <div class="adm-card">
-  <h2 style="margin-top:0;font-size:18px;color:#0a243b">Informations personnelles — <?= strtoupper($lang) ?></h2>
+  <h2 style="margin-top:0;font-size:18px;color:#0a243b">Informations personnelles — FR et EN côte à côte</h2>
+  <p class="adm-help">Un seul « Enregistrer » sauvegarde les deux langues. Le champ anglais se préremplit en direct avec le texte français (copie brute, PAS une traduction) tant que vous ne l’avez pas modifié ; dès votre première frappe, il cesse de suivre.</p>
   <form method="POST">
     <?= csrf_field() ?>
     <input type="hidden" name="action" value="personal_save">
     <div class="adm-grid2">
       <div class="adm-field"><label>Nom complet (universel)</label>
         <input class="adm-input" name="full_name" maxlength="160" value="<?= e($personal['full_name'] ?? '') ?>"></div>
-      <div class="adm-field"><label>Titre professionnel (<?= strtoupper($lang) ?>)</label>
-        <input class="adm-input" name="headline" maxlength="200" value="<?= e($personal['headline'] ?? '') ?>"></div>
+      <div class="adm-field"><label>Photo</label>
+        <label style="font-weight:normal"><input type="checkbox" name="photo_show" <?= !isset($photo['show_on_pdf']) || (int) $photo['show_on_pdf'] ? 'checked' : '' ?>> Afficher la photo sur le PDF (les deux CV)</label>
+      </div>
     </div>
-    <div class="adm-field"><label>Profil / résumé (<?= strtoupper($lang) ?>)</label>
-      <textarea class="adm-textarea" rows="5" name="summary" maxlength="2000"><?= e($personal['summary'] ?? '') ?></textarea></div>
+    <div class="adm-duo">
+      <div class="adm-lang fr">
+        <?php admin_lang_head('fr', 'Français'); ?>
+        <div class="adm-field"><label>Titre professionnel (FR)</label>
+          <input class="adm-input" name="headline" id="cvHeadlineFr" maxlength="200" value="<?= e($personal['headline'] ?? '') ?>"></div>
+        <div class="adm-field"><label>Profil / résumé (FR)</label>
+          <textarea class="adm-textarea" rows="5" name="summary" id="cvSummaryFr" maxlength="2000"><?= e($personal['summary'] ?? '') ?></textarea></div>
+      </div>
+      <div class="adm-lang en">
+        <?php admin_lang_head('en', 'English'); ?>
+        <div class="adm-field"><label>Headline (EN)</label>
+          <input class="adm-input" name="headline_en" id="cvHeadlineEn" maxlength="200" value="<?= e($personalEn['headline'] ?? '') ?>" data-follow-from="cvHeadlineFr"></div>
+        <div class="adm-field"><label>Profile / summary (EN)</label>
+          <textarea class="adm-textarea" rows="5" name="summary_en" id="cvSummaryEn" maxlength="2000" data-follow-from="cvSummaryFr"><?= e($personalEn['summary'] ?? '') ?></textarea></div>
+      </div>
+    </div>
     <div class="adm-grid2">
       <div class="adm-field"><label>Email</label><input class="adm-input" name="email" maxlength="254" value="<?= e($personal['email'] ?? '') ?>"></div>
       <div class="adm-field"><label>Téléphone</label><input class="adm-input" name="phone" maxlength="40" value="<?= e($personal['phone'] ?? '') ?>"></div>
@@ -510,96 +551,28 @@ if ($flash === '' && $flashQS !== '') {
       <div class="adm-field"><label>Site web (URL)</label><input class="adm-input" name="website" maxlength="300" value="<?= e($personal['website'] ?? '') ?>"></div>
       <div class="adm-field"><label>LinkedIn (URL)</label><input class="adm-input" name="linkedin" maxlength="300" value="<?= e($personal['linkedin'] ?? '') ?>"></div>
     </div>
-    <button type="submit" class="adm-btn">Enregistrer</button>
+    <button type="submit" class="adm-btn">Enregistrer (FR + EN)</button>
   </form>
+  <script>
+  (function () {
+    // Préremplissage en direct : copie le texte FR vers le champ EN voisin
+    // tant que l'utilisateur n'a pas modifié le champ EN. AUCUNE traduction.
+    document.querySelectorAll('[data-follow-from]').forEach(function (enField) {
+      var frField = document.getElementById(enField.getAttribute('data-follow-from'));
+      if (!frField) return;
+      var touched = enField.value !== '' && enField.value !== frField.value;
+      frField.addEventListener('input', function () {
+        if (!touched) {
+          enField.value = frField.value; // copie brute — jamais une traduction
+        }
+      });
+      enField.addEventListener('input', function () {
+        touched = enField.value !== frField.value;
+      });
+    });
+  })();
+  </script>
 </div>
-
-<?php if ($lang === 'en'): ?>
-<div class="adm-card">
-  <h2 style="margin-top:0;font-size:18px;color:#0a243b">Traductions manuelles EN — sans clé API</h2>
-  <p class="adm-help">Complétez les champs anglais enregistrés ici avant de publier. Les valeurs EN saisies sont prioritaires et ne sont pas écrasées par la traduction automatique.</p>
-  <p class="adm-help">Si une rubrique ne contient aucun élément, ajoutez d’abord son contenu source dans <a href="profile.php">Profil &amp; Paramètres</a>, puis revenez ici pour enregistrer sa version anglaise.</p>
-
-  <h3>Expériences</h3>
-  <?php if ($cvExperiences === []): ?><p class="adm-muted">Aucune expérience dans le CV dynamique.</p><?php endif; ?>
-  <?php foreach ($cvExperiences as $item): ?>
-    <form method="POST" class="adm-card" style="background:var(--ivory);padding:12px;margin-bottom:10px">
-      <?= csrf_field() ?>
-      <input type="hidden" name="action" value="manual_en_save">
-      <input type="hidden" name="section" value="experience">
-      <input type="hidden" name="id" value="<?= (int) $item['id'] ?>">
-      <strong><?= e($item['org_fr']) ?> — <?= e($item['role_fr']) ?></strong>
-      <div class="adm-grid2">
-        <div class="adm-field"><label>Organisation (EN)</label><input class="adm-input" name="org_en" maxlength="200" value="<?= e($item['org_en']) ?>"></div>
-        <div class="adm-field"><label>Role (EN)</label><input class="adm-input" name="role_en" maxlength="200" value="<?= e($item['role_en']) ?>"></div>
-      </div>
-      <div class="adm-field"><label>Description (EN)</label><textarea class="adm-textarea" rows="2" name="desc_en" maxlength="2000"><?= e($item['desc_en']) ?></textarea></div>
-      <button type="submit" class="adm-btn small">Enregistrer</button>
-    </form>
-  <?php endforeach; ?>
-
-  <h3>Formation</h3>
-  <?php if ($cvEducation === []): ?><p class="adm-muted">Aucune formation dans le CV dynamique.</p><?php endif; ?>
-  <?php foreach ($cvEducation as $item): ?>
-    <form method="POST" class="adm-card" style="background:var(--ivory);padding:12px;margin-bottom:10px">
-      <?= csrf_field() ?>
-      <input type="hidden" name="action" value="manual_en_save">
-      <input type="hidden" name="section" value="education">
-      <input type="hidden" name="id" value="<?= (int) $item['id'] ?>">
-      <strong><?= e($item['school_fr']) ?> — <?= e($item['degree_fr']) ?></strong>
-      <div class="adm-grid2">
-        <div class="adm-field"><label>School (EN)</label><input class="adm-input" name="school_en" maxlength="200" value="<?= e($item['school_en']) ?>"></div>
-        <div class="adm-field"><label>Degree (EN)</label><input class="adm-input" name="degree_en" maxlength="200" value="<?= e($item['degree_en']) ?>"></div>
-      </div>
-      <div class="adm-field"><label>Description (EN)</label><textarea class="adm-textarea" rows="2" name="desc_en" maxlength="2000"><?= e($item['desc_en']) ?></textarea></div>
-      <button type="submit" class="adm-btn small">Enregistrer</button>
-    </form>
-  <?php endforeach; ?>
-
-  <h3>Compétences</h3>
-  <?php if ($cvSkills === []): ?><p class="adm-muted">Aucune compétence dans le CV dynamique.</p><?php endif; ?>
-  <?php foreach ($cvSkills as $item): ?>
-    <form method="POST" class="adm-flex" style="align-items:flex-end;margin-bottom:10px">
-      <?= csrf_field() ?>
-      <input type="hidden" name="action" value="manual_en_save">
-      <input type="hidden" name="section" value="skill">
-      <input type="hidden" name="id" value="<?= (int) $item['id'] ?>">
-      <div class="adm-field" style="flex:1"><label><?= e($item['name']) ?> — Name (EN)</label>
-        <input class="adm-input" name="name_en" maxlength="120" value="<?= e($item['name_en'] ?? '') ?>"></div>
-      <button type="submit" class="adm-btn small">Enregistrer</button>
-    </form>
-  <?php endforeach; ?>
-
-  <h3>Certifications</h3>
-  <?php if ($cvCertifications === []): ?><p class="adm-muted">Aucune certification dans le CV dynamique.</p><?php endif; ?>
-  <?php foreach ($cvCertifications as $item): ?>
-    <form method="POST" class="adm-flex" style="align-items:flex-end;margin-bottom:10px">
-      <?= csrf_field() ?>
-      <input type="hidden" name="action" value="manual_en_save">
-      <input type="hidden" name="section" value="certification">
-      <input type="hidden" name="id" value="<?= (int) $item['id'] ?>">
-      <div class="adm-field" style="flex:1"><label><?= e($item['name_fr']) ?> — Name (EN)</label>
-        <input class="adm-input" name="name_en" maxlength="200" value="<?= e($item['name_en']) ?>"></div>
-      <button type="submit" class="adm-btn small">Enregistrer</button>
-    </form>
-  <?php endforeach; ?>
-
-  <h3>Distinctions</h3>
-  <?php if ($cvDistinctions === []): ?><p class="adm-muted">Aucune distinction dans le CV dynamique.</p><?php endif; ?>
-  <?php foreach ($cvDistinctions as $item): ?>
-    <form method="POST" class="adm-card" style="background:var(--ivory);padding:12px;margin-bottom:10px">
-      <?= csrf_field() ?>
-      <input type="hidden" name="action" value="manual_en_save">
-      <input type="hidden" name="section" value="distinction">
-      <input type="hidden" name="id" value="<?= (int) $item['id'] ?>">
-      <strong><?= e($item['title_fr']) ?></strong>
-      <div class="adm-field"><label>Title (EN)</label><input class="adm-input" name="title_en" maxlength="200" value="<?= e($item['title_en']) ?>"></div>
-      <div class="adm-field"><label>Description (EN)</label><textarea class="adm-textarea" rows="2" name="desc_en" maxlength="400"><?= e($item['desc_en']) ?></textarea></div>
-      <button type="submit" class="adm-btn small">Enregistrer</button>
-    </form>
-  <?php endforeach; ?>
-</div>
-<?php endif; ?>
 
 <!-- =========================== RUBRIQUES =========================== -->
 <div class="adm-card">

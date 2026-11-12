@@ -44,6 +44,15 @@ if ($mode === 'preview') {
 // puis repli : CV publié (migration 002) → CV actif (migration 001) → PDF
 // statique d'origine. Réponse jamais mise en cache : une nouvelle publication
 // ou une modification de données est immédiatement reflétée.
+// Aucune erreur/warning PHP dans le flux du fichier : le PDF doit commencer
+// par %PDF, sinon le navigateur le considère corrompu (bug constaté : un
+// Deprecated s'imprimait avant les en-têtes).
+ini_set('display_errors', '0');
+error_reporting(E_ALL & ~E_DEPRECATED & ~E_WARNING);
+while (ob_get_level() > 0) {
+    ob_end_clean(); // supprime toute sortie parasite accumulée (BOM, notice…)
+}
+
 try {
     $cv = cv_build($lang);
     // Ne générer à la volée QUE si la base contient réellement du contenu :
@@ -98,8 +107,19 @@ foreach ($candidates as $candidate) {
     }
 }
 if ($path === '') {
+    // Aucun CV disponible : réponse claire (HTML), jamais une page blanche
+    // ni un fichier binaire corrompu.
     http_response_code(404);
-    exit('CV not available');
+    header('Content-Type: text/html; charset=UTF-8');
+    $isEn = $lang === 'en';
+    exit('<!doctype html><html lang="' . e($lang) . '"><meta charset="utf-8">'
+        . '<title>' . ($isEn ? 'CV not available' : 'CV non disponible') . '</title>'
+        . '<body style="font-family:Georgia,serif;text-align:center;padding:4rem">'
+        . '<h1>' . ($isEn ? 'CV temporarily unavailable' : 'CV temporairement indisponible') . '</h1>'
+        . '<p>' . ($isEn
+            ? 'No CV is currently published. Please come back later or contact me directly at <a href="mailto:sylvainsoadan3@gmail.com">sylvainsoadan3@gmail.com</a>.'
+            : 'Aucun CV n’est actuellement publié. Revenez plus tard ou écrivez-moi directement à <a href="mailto:sylvainsoadan3@gmail.com">sylvainsoadan3@gmail.com</a>.')
+        . '</p><p><a href="javascript:history.back()">' . ($isEn ? 'Back' : 'Retour') . '</a></p></body></html>');
 }
 
 header('Content-Type: application/pdf');

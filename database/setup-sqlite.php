@@ -628,3 +628,13 @@ $stmtSet->execute(['home_transition', 'fade']);
 $stmtSet->execute(['home_video_enabled', '1']);
 echo "✔ Migration 005 (accueil) appliquée.\n";
 
+// ============================================================================
+//  Migration 006 — CV : interrupteur photo (cv_photo.show_on_pdf)
+// ============================================================================
+$pcv = $pdo->query('PRAGMA table_info(cv_photo)')->fetchAll(PDO::FETCH_COLUMN, 1);
+if (!in_array('show_on_pdf', $pcv, true)) {
+    $pdo->exec('ALTER TABLE cv_photo ADD COLUMN show_on_pdf INTEGER NOT NULL DEFAULT 1');
+    echo "  ✔ Colonne cv_photo.show_on_pdf ajoutée\n";
+}
+echo "✔ Migration 006 (CV photo) appliquée.\n";
+

@@ -329,7 +329,17 @@ function cv_pdf_logo(string $variant): ?string
  */
 function cv_pdf_prepare_photo(?array $photo): ?string
 {
+    // Interrupteur admin (migration 006) : photo masquée → rien sur le PDF.
     if ($photo === null || empty($photo['filename'])) {
+        return null;
+    }
+    if (array_key_exists('show_on_pdf', $photo) && !(int) $photo['show_on_pdf']) {
+        return null;
+    }
+    if (!function_exists('imagecreatetruecolor')) {
+        // Bibliothèque GD absente : recadrage impossible. Le PDF est généré
+        // sans photo ; l'admin est averti (voir admin/cv-builder.php).
+        log_event('warning', 'CV photo: bibliothèque GD manquante, photo omise du PDF');
         return null;
     }
     $src = ROOT_PATH . DIRECTORY_SEPARATOR . 'uploads' . DIRECTORY_SEPARATOR . 'images' . DIRECTORY_SEPARATOR . $photo['filename'];

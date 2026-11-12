@@ -42,6 +42,23 @@ function cv_photo_set(string $filename, string $originalName): void
         ->execute([':f' => $filename, ':o' => mb_substr($originalName, 0, 160, 'UTF-8')]);
 }
 
+/**
+ * Interrupteur « afficher la photo sur le PDF » (migration 006).
+ * La photo, si activée, apparaît sur les deux CV (FR et EN).
+ */
+function cv_photo_set_visible(bool $show): void
+{
+    $row = cv_photo_get();
+    if ($row === null) {
+        return;
+    }
+    if (!db_column_exists('cv_photo', 'show_on_pdf')) {
+        return; // base non migrée : la photo reste toujours affichée
+    }
+    db()->prepare('UPDATE cv_photo SET show_on_pdf = :s WHERE id = :id')
+        ->execute([':s' => $show ? 1 : 0, ':id' => (int) $row['id']]);
+}
+
 /** Met à jour les paramètres de recadrage (pourcentages). */
 function cv_photo_set_crop(float $x, float $y, float $zoom): void
 {
@@ -328,7 +345,7 @@ function cv_generated_href(string $lang): string
  *
  * @return array{personal:array, photo:?array, template:string, sections:array<int,array>}
  */
-function cv_build(string $lang, bool $autoTranslate = null): array
+function cv_build(string $lang, ?bool $autoTranslate = null): array
 {
     // Deux CV indépendants (FR / EN) : AUCUNE traduction automatique.
     // Le paramètre $autoTranslate est conservé pour compatibilité d'appel
