@@ -552,3 +552,42 @@ foreach ($bannerSettings as $bs) {
 }
 echo "✔ Réglages du bandeau multimédia insérés.\n";
 
+// ============================================================================
+//  Migration 003 — bilinguisme côte à côte (idempotent)
+// ============================================================================
+function sqlite_add_col(PDO $pdo, string $table, string $col, string $def): void
+{
+    $cols = $pdo->query("PRAGMA table_info($table)")->fetchAll(PDO::FETCH_COLUMN, 1);
+    if (!in_array($col, $cols, true)) {
+        $pdo->exec("ALTER TABLE $table ADD COLUMN $col $def");
+        echo "  ✔ $table.$col ajouté\n";
+    }
+}
+
+sqlite_add_col($pdo, 'articles', 'slug_en', 'TEXT');
+sqlite_add_col($pdo, 'articles', 'title_en', "TEXT NOT NULL DEFAULT ''");
+sqlite_add_col($pdo, 'articles', 'excerpt_en', "TEXT NOT NULL DEFAULT ''");
+sqlite_add_col($pdo, 'articles', 'content_html_en', 'TEXT');
+sqlite_add_col($pdo, 'articles', 'seo_title_en', 'TEXT');
+sqlite_add_col($pdo, 'articles', 'seo_description_en', 'TEXT');
+
+sqlite_add_col($pdo, 'projects', 'title_en', "TEXT NOT NULL DEFAULT ''");
+sqlite_add_col($pdo, 'projects', 'role_en', "TEXT NOT NULL DEFAULT ''");
+sqlite_add_col($pdo, 'projects', 'summary_en', "TEXT NOT NULL DEFAULT ''");
+sqlite_add_col($pdo, 'projects', 'description_en', 'TEXT');
+sqlite_add_col($pdo, 'projects', 'objectives_en', 'TEXT');
+sqlite_add_col($pdo, 'projects', 'results_en', 'TEXT');
+sqlite_add_col($pdo, 'projects', 'partners_en', "TEXT NOT NULL DEFAULT ''");
+
+sqlite_add_col($pdo, 'gallery_photos', 'alt_fr', "TEXT NOT NULL DEFAULT ''");
+sqlite_add_col($pdo, 'gallery_photos', 'alt_en', "TEXT NOT NULL DEFAULT ''");
+sqlite_add_col($pdo, 'gallery_photos', 'banner_label_fr', "TEXT NOT NULL DEFAULT ''");
+sqlite_add_col($pdo, 'gallery_photos', 'banner_label_en', "TEXT NOT NULL DEFAULT ''");
+
+sqlite_add_col($pdo, 'news_items', 'slug_en', 'TEXT');
+sqlite_add_col($pdo, 'news_items', 'title_en', "TEXT NOT NULL DEFAULT ''");
+sqlite_add_col($pdo, 'news_items', 'excerpt_en', "TEXT NOT NULL DEFAULT ''");
+sqlite_add_col($pdo, 'news_items', 'body_html_en', 'TEXT');
+sqlite_add_col($pdo, 'news_items', 'location_en', "TEXT NOT NULL DEFAULT ''");
+echo "✔ Migration 003 (bilinguisme) appliquée.\n";
+

@@ -279,6 +279,70 @@ function admin_header(string $title, string $active = ''): void
         color: var(--muted);
         margin: 4px 0 0;
       }
+
+      /* ====== Bilinguisme côte à côte : FR à gauche, EN à droite ====== */
+      .adm-duo {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 16px;
+        border-top: 1px dashed var(--line);
+        padding-top: 14px;
+        margin-top: 14px;
+      }
+
+      .adm-duo .adm-lang {
+        border: 1px solid var(--line);
+        border-radius: 6px;
+        padding: 12px;
+        background: var(--ivory);
+      }
+
+      .adm-duo .adm-lang.en { background: #f4f7fb; }
+
+      .adm-lang-head {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 8px;
+      }
+
+      .adm-lang-tag {
+        font-size: 12px;
+        font-weight: bold;
+        color: #fff;
+        background: var(--navy);
+        border-radius: 10px;
+        padding: 2px 10px;
+      }
+
+      .adm-lang.en .adm-lang-tag { background: var(--green); }
+
+      .adm-copy-btn {
+        font-size: 12px;
+        background: none;
+        border: 1px solid var(--green);
+        color: var(--green);
+        border-radius: 4px;
+        padding: 3px 10px;
+        cursor: pointer;
+        font-family: inherit;
+      }
+
+      .adm-copy-btn:hover { background: var(--green); color: #fff; }
+
+      .adm-badge-en {
+        display: inline-block;
+        font-size: 12px;
+        padding: 2px 8px;
+        border-radius: 10px;
+      }
+
+      .adm-badge-en.ok { background: #e9f5ee; color: #0f6b3c; }
+      .adm-badge-en.missing { background: #fdecea; color: #b3261e; }
+
+      @media (max-width: 860px) {
+        .adm-duo { grid-template-columns: 1fr; }
+      }
     </style>
   </head>
 
@@ -304,4 +368,55 @@ function admin_footer(): void
 
   </html>
   <?php
+}
+
+/**
+ * Bouton « Copier le français vers l'anglais » — préremplit le champ EN
+ * pour modification manuelle. NE TRADUIT RIEN (copie brute de la valeur
+ * du champ FR cible). Signature JS installée une seule fois par page.
+ */
+function admin_copy_script_once(): void
+{
+    static $done = false;
+    if ($done) {
+        return;
+    }
+    $done = true;
+    ?>
+<script>
+(function () {
+  document.addEventListener('click', function (ev) {
+    var btn = ev.target.closest('[data-copy-from]');
+    if (!btn) return;
+    ev.preventDefault();
+    var fromSel = btn.getAttribute('data-copy-from');   // sélecteur du champ FR
+    var toSel = btn.getAttribute('data-copy-to');       // sélecteur du champ EN
+    var from = document.querySelector(fromSel);
+    var to = document.querySelector(toSel);
+    if (from && to) {
+      to.value = from.value; // copie brute : aucune traduction automatique
+      to.focus();
+    }
+  });
+})();
+</script>
+    <?php
+}
+
+/**
+ * Entête d'un panneau de langue (FR ou EN) avec bouton copier facultatif.
+ * @param string $code 'fr'|'en' ; $copyFrom/$copyTo : sélecteurs CSS du champ
+ *                     source (FR) et destination (EN) pour ce bloc.
+ */
+function admin_lang_head(string $code, string $label, ?string $copyFrom = null, ?string $copyTo = null): void
+{
+    ?>
+    <div class="adm-lang-head">
+      <span class="adm-lang-tag"><?= e($code) ?></span>
+      <strong style="color:var(--navy)"><?= e($label) ?></strong>
+      <?php if ($copyFrom && $copyTo): ?>
+        <button type="button" class="adm-copy-btn" data-copy-from="<?= e($copyFrom) ?>" data-copy-to="<?= e($copyTo) ?>">Copier le français vers l’anglais ↓</button>
+      <?php endif; ?>
+    </div>
+    <?php
 }

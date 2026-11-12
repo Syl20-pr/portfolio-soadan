@@ -25,6 +25,9 @@ try {
         $row = $stmt->fetch();
         $project = $row !== false ? $row : [];
     }
+    if ($project !== [] && $project !== null) {
+        $project = bilingual_pick($project, $LANG);
+    }
 } catch (Throwable $e) {
     log_event('error', 'Dynamic project: unavailable');
     $project = [];

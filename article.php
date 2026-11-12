@@ -22,7 +22,10 @@ $isPreview = isset($_GET['preview']) && admin_logged_in();
 $article = [];
 
 try {
-    $article = $slug !== '' ? article_by_slug($slug, !$isPreview) : [];
+    $article = $slug !== '' ? article_by_slug($slug, !$isPreview, $LANG) : [];
+    if ($article !== [] && $article !== null) {
+        $article = bilingual_pick($article, $LANG);
+    }
 } catch (Throwable $e) {
     log_event('error', 'Article page: unavailable');
     $article = [];

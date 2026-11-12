@@ -17,7 +17,6 @@ declare(strict_types=1);
 require_once __DIR__ . DIRECTORY_SEPARATOR . 'config.php';
 require_once __DIR__ . DIRECTORY_SEPARATOR . 'database.php';
 require_once __DIR__ . DIRECTORY_SEPARATOR . 'content.php';
-require_once __DIR__ . DIRECTORY_SEPARATOR . 'translate.php';
 
 // -----------------------------------------------------------------------------
 //  Photo professionnelle
@@ -331,14 +330,10 @@ function cv_generated_href(string $lang): string
  */
 function cv_build(string $lang, bool $autoTranslate = null): array
 {
-    // Mode de la version anglaise : 'auto' (traduction automatique du FR)
-    // ou 'dual' (deux CV indépendants, RIEN n'est traduit automatiquement).
-    // Défaut : 'auto' si une clé API est configurée, sinon 'dual' — jamais
-    // de texte français dans un CV anglais par mégarde.
-    if ($autoTranslate === null) {
-        $mode = setting('cv_translation_mode', cv_translate_enabled() ? 'auto' : 'dual');
-        $autoTranslate = ($mode === 'auto');
-    }
+    // Deux CV indépendants (FR / EN) : AUCUNE traduction automatique.
+    // Le paramètre $autoTranslate est conservé pour compatibilité d'appel
+    // mais ignoré — les champs EN vides restent vides, jamais remplacés
+    // par du français.
     $lang = $lang === 'en' ? 'en' : 'fr';
     $sectionRows = cv_sections_get($lang);
     $state = cv_state_get($lang);
@@ -356,11 +351,8 @@ function cv_build(string $lang, bool $autoTranslate = null): array
         'distinctions' => ['items' => distinctions_all()],
     ];
 
-    // Version anglaise : tout champ EN vide est traduit automatiquement depuis le français.
+    // Deux CV indépendants : aucun remplissage automatique côté EN.
     $translation = null;
-    if ($lang === 'en' && $autoTranslate) {
-        $translation = cv_en_autofill($personal, $data, cv_personal_get('fr'));
-    }
 
     $sections = [];
     foreach ($sectionRows as $row) {
@@ -389,4 +381,38 @@ function cv_build(string $lang, bool $autoTranslate = null): array
         'sections' => $sections,
         'lang' => $lang,
     ];
+}
+
+/**
+ * Liste des champs anglais encore vides d'un CV (deux CV indépendants).
+ * Sert de garde-fou à la publication : un CV EN incomplet n'est jamais
+ * publié, et aucun texte français n'y est substitué.
+ *
+ * @param array<string,mixed> $cv  résultat de cv_build('en')
+ * @return string[] libellés lisibles des champs manquants
+ */
+function cv_en_missing_fields(array $cv): array
+{
+    $missing = [];
+    $p = $cv['personal'] ?? [];
+    foreach ([
+        'Titre professionnel (EN)' => 'headline',
+        'Résumé (EN)'              => 'summary',
+    ] as $label => $key) {
+        if (trim((string) ($p[$key] ?? '')) === '') {
+            $missing[] = $label;
+        }
+    }
+    foreach (($cv['sections'] ?? []) as $sec) {
+        foreach (($sec['data']['items'] ?? []) as $item) {
+            // Chaque rubrique a ses champs _en ; on signale les vides.
+            foreach ($item as $k => $v) {
+                if (is_string($k) && str_ends_with($k, '_en') && trim($v) === '') {
+                    $missing[] = $sec['title'] . ' — ' . $k;
+                    break;
+                }
+            }
+        }
+    }
+    return array_values(array_unique($missing));
 }

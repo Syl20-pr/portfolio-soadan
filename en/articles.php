@@ -14,7 +14,7 @@ $PAGE = 'publications';
 $BASE = '../';
 
 try {
-    $articles = articles_list(true, 60);
+    $articles = articles_list(true, 60, 'en'); // seuls les articles avec version EN complète
 } catch (Throwable $e) {
     log_event('error', 'Public articles (EN): unavailable');
     $articles = [];
@@ -46,7 +46,8 @@ require __DIR__ . '/../includes/header.php';
       <?php else: ?>
         <div class="project-list">
           <?php foreach ($articles as $a): ?>
-            <?php
+            <?php $a = bilingual_pick($a, 'en'); // champs EN si disponibles
+            ?>
             $catLabel = $a['category_en'] ?? '';
             // English mirror: publications live under /en/ too when a static page exists.
             $href = 'publications/' . basename((string) ($a['source_page'] ?? '')) ?: '';

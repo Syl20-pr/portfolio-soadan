@@ -26,22 +26,25 @@ require_admin();
 
 /**
  * Génère et publie le CV d'une langue (remplace l'ancien PDF publié).
+ * Deux CV indépendants : si un champ EN est vide, il le reste — jamais de
+ * texte français dans le PDF anglais. La publication EN échoue avec un
+ * message clair tant que la version anglaise est incomplète.
  *
  * @return array{ok:bool,msg:string}
  */
 function cv_publish_lang(PDO $pdo, string $lang): array
 {
     $cv = cv_build($lang);
-    $tr = $cv['translation'] ?? null;
-    if (is_array($tr) && !$tr['ok']) {
-        $why = $tr['error'] === 'not_configured'
-            ? 'la clé ANTHROPIC_API_KEY est absente du fichier .env'
-            : 'le service de traduction a échoué (' . $tr['error'] . ')';
-        return ['ok' => false, 'msg' => 'CV EN non publié : ' . $why
-            . '. Complétez les champs EN manquants dans le bloc « Traductions manuelles EN » ou configurez la clé.'];
-    }
     if (trim((string) ($cv['personal']['full_name'] ?? '')) === '') {
         return ['ok' => false, 'msg' => 'Renseignez le nom complet avant de publier le CV ' . strtoupper($lang) . '.'];
+    }
+    if ($lang === 'en') {
+        // Garde-fou : la version anglaise doit être rédigée en anglais.
+        $missing = cv_en_missing_fields($cv);
+        if ($missing !== []) {
+            return ['ok' => false, 'msg' => 'CV EN non publié — champs anglais manquants : '
+                . implode(', ', $missing) . '. Complétez-les côté EN (jamais remplis automatiquement).'];
+        }
     }
     $dir = ROOT_PATH . '/uploads/cv';
     if (!is_dir($dir)) {
@@ -278,19 +281,25 @@ try {
                     break;
 
                 // ---------------------------------------------------------
-                case 'translation_mode':
-                    $mode = ($_POST['cv_translation_mode'] ?? 'dual') === 'auto' ? 'auto' : 'dual';
-                    if ($mode === 'auto' && !cv_translate_enabled()) {
-                        // Verrou : jamais de traduction auto sans clé API.
-                        $flash = 'Traduction automatique indisponible : la clé ANTHROPIC_API_KEY est absente du .env. Mode B conservé.';
+                case 'publish_both':
+                    // Publication en une action : FR puis EN (indépendants).
+                    $rFr = cv_publish_lang($pdo, 'fr');
+                    $rEn = cv_publish_lang($pdo, 'en');
+                    if ($rFr['ok'] && $rEn['ok']) {
+                        $flash = 'CV publié : les deux versions (FR et EN) remplacent les précédentes.';
+                    } elseif ($rFr['ok'] && !$rEn['ok']) {
+                        $flash = 'CV FR publié. ' . $rEn['msg'];
                         $flashType = 'err';
                     } else {
-                        setting_set(db(), 'cv_translation_mode', $mode);
-                        $flash = $mode === 'auto'
-                            ? 'Mode A activé : la version anglaise sera traduite automatiquement à la publication.'
-                            : 'Mode B activé : les CV français et anglais sont indépendants.';
+                        $flash = $rFr['msg'] . ' ' . $rEn['msg'];
+                        $flashType = 'err';
                     }
                     break;
+
+                // ---------------------------------------------------------
+                case 'generate_draft':
+                    $cv = cv_build($lang);
+                    $dir = ROOT_PATH . '/uploads/cv';
 
                 // ---------------------------------------------------------
                 case 'generate_draft':
@@ -781,27 +790,19 @@ if ($flash === '' && $flashQS !== '') {
   </details>
 </div>
 
-<!-- ========================= MODE FR/EN & MODÈLE ========================= -->
+<!-- ========================= INDICATEUR FR/EN ========================= -->
 <div class="adm-card">
-  <h2 style="margin-top:0;font-size:18px;color:#0a243b">Version anglaise — mode de fonctionnement</h2>
-  <p class="adm-help">Deux modes, au choix :
-    <strong>A — traduction automatique</strong> : vous rédigez en français, la version anglaise est traduite à la publication (les champs EN saisis à la main ne sont jamais écrasés) — nécessite une clé ANTHROPIC_API_KEY ;
-    <strong>B — deux CV indépendants</strong> : le CV français et le CV anglais sont rédigés séparément, rien n’est traduit automatiquement.</p>
-  <?php $cvMode = setting('cv_translation_mode', cv_translate_enabled() ? 'auto' : 'dual'); ?>
-  <form method="POST" class="adm-flex" style="align-items:flex-end">
-    <?= csrf_field() ?>
-    <input type="hidden" name="action" value="translation_mode">
-    <div class="adm-field" style="margin-bottom:0">
-      <label>Mode</label>
-      <select class="adm-select" name="cv_translation_mode" style="width:auto">
-        <option value="auto" <?= $cvMode === 'auto' ? 'selected' : '' ?>>A — Traduction automatique FR → EN<?= cv_translate_enabled() ? '' : ' (clé API absente : indisponible)' ?></option>
-        <option value="dual" <?= $cvMode === 'dual' ? 'selected' : '' ?>>B — Deux CV indépendants (FR et EN rédigés séparément)</option>
-      </select>
-    </div>
-    <button type="submit" class="adm-btn secondary">Appliquer</button>
-  </form>
-  <?php if ($cvMode === 'auto' && !cv_translate_enabled()): ?>
-    <div class="adm-alert err" style="margin-top:10px">La traduction automatique est sélectionnée mais la clé ANTHROPIC_API_KEY est absente du fichier .env : le CV anglais ne sera PAS publié avec du texte français. Passez en mode B ou ajoutez la clé.</div>
+  <h2 style="margin-top:0;font-size:18px;color:#0a243b">Version anglaise — complétude</h2>
+  <?php
+  $cvEn = cv_build('en');
+  $missingEn = cv_en_missing_fields($cvEn);
+  ?>
+  <?php if ($missingEn === []): ?>
+    <div class="adm-alert ok" style="margin-top:6px">EN complet — la version anglaise peut être publiée.</div>
+  <?php else: ?>
+    <div class="adm-alert err" style="margin-top:6px"><strong>EN manquant (<?= count($missingEn) ?> champ(s)) :</strong>
+      <?= e(implode(' · ', array_slice($missingEn, 0, 8)) . (count($missingEn) > 8 ? ' …' : '')) ?><br>
+      <span style="font-size:13px">Les CV français et anglais sont indépendants : aucun champ EN vide n’est jamais rempli par le français. Complétez la version anglaise ci-dessus.</span></div>
   <?php endif; ?>
 </div>
 
@@ -835,9 +836,13 @@ if ($flash === '' && $flashQS !== '') {
       <?= csrf_field() ?><input type="hidden" name="action" value="generate_draft">
       <button type="submit" class="adm-btn secondary">Enregistrer comme brouillon (génère un PDF d'aperçu)</button>
     </form>
-    <form method="POST" onsubmit="return confirm('Publier ce CV ? Il remplacera la version téléchargeable du site.');">
+    <form method="POST" onsubmit="return confirm('Publier le CV ? Génère FR et EN en une action ; chaque version remplace la précédente pour tous les visiteurs (sans cache).');">
+      <?= csrf_field() ?><input type="hidden" name="action" value="publish_both">
+      <button type="submit" class="adm-btn">Publier les deux CV (FR + EN)</button>
+    </form>
+    <form method="POST" onsubmit="return confirm('Publier uniquement le CV <?= strtoupper($lang) ?> ?');">
       <?= csrf_field() ?><input type="hidden" name="action" value="publish">
-      <button type="submit" class="adm-btn">Publier les modifications</button>
+      <button type="submit" class="adm-btn secondary">Publier <?= strtoupper($lang) ?> seul</button>
     </form>
     <?php if ($state['status'] === 'published'): ?>
       <form method="POST" onsubmit="return confirm('Retirer la version publiée ? Le site servira à nouveau l\'ancien CV.');">

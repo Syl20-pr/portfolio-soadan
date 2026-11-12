@@ -24,7 +24,10 @@ $slug = isset($_GET['slug']) ? (string) $_GET['slug'] : '';
 $item = [];
 
 try {
-    $item = $slug !== '' ? news_by_slug($slug, true) : [];
+    $item = $slug !== '' ? news_by_slug($slug, true, $LANG) : [];
+    if ($item !== [] && $item !== null) {
+        $item = bilingual_pick($item, $LANG);
+    }
 } catch (Throwable $e) {
     log_event('error', 'News detail: unavailable');
     $item = [];

@@ -103,6 +103,20 @@ try {
                     $slug .= '-' . substr(bin2hex(random_bytes(2)), 0, 4);
                 }
 
+                // Slug anglais distinct (si titre EN fourni — migration 003).
+                $titleEn = $clean($_POST['title_en'] ?? '', 255);
+                $slugEn = '';
+                if ($titleEn !== '' && db_column_exists('news_items', 'title_en')) {
+                    $slugEn = slugify($titleEn);
+                    if ($slugEn !== '') {
+                        $stmt = $pdo->prepare('SELECT id FROM news_items WHERE slug_en = :s AND id <> :id LIMIT 1');
+                        $stmt->execute([':s' => $slugEn, ':id' => $id]);
+                        if ($stmt->fetchColumn()) {
+                            $slugEn .= '-' . substr(bin2hex(random_bytes(2)), 0, 4);
+                        }
+                    }
+                }
+
                 // Source : embed (liste blanche) OU fichier téléversé.
                 $sourceKind = ($_POST['source_kind'] ?? 'embed') === 'file' ? 'file' : 'embed';
                 $embedUrl = '';
@@ -177,7 +191,9 @@ try {
                                 type = :type, category = :category, source_kind = :sk, embed_url = :eu,
                                 media_file = :mf, media_mime = :mm, poster_image = :pi, event_date = :ed,
                                 location = :loc, status = :st, comments_enabled = :ce,
-                                published_at = COALESCE(published_at, :pa)
+                                published_at = COALESCE(published_at, :pa),
+                                slug_en = :slug_en, title_en = :title_en, excerpt_en = :excerpt_en,
+                                body_html_en = :body_en, location_en = :loc_en
                              WHERE id = :id'
                         )->execute([
                             ':slug' => $slug, ':lang' => $lang, ':title' => $title,
@@ -193,6 +209,11 @@ try {
                             ':st' => $status, ':ce' => $commentsEnabled,
                             ':pa' => $status === 'published' ? $now : null,
                             ':id' => $id,
+                            ':slug_en' => $slugEn !== '' ? $slugEn : null,
+                            ':title_en' => $clean($_POST['title_en'] ?? '', 255),
+                            ':excerpt_en' => $clean($_POST['excerpt_en'] ?? '', 500),
+                            ':body_en' => (string) ($_POST['body_en'] ?? ''),
+                            ':loc_en' => $clean($_POST['location_en'] ?? '', 160),
                         ]);
                         $savedId = $id;
                     } else {
@@ -200,10 +221,12 @@ try {
                             'INSERT INTO news_items
                                 (slug, lang, title, excerpt, body_html, type, category, source_kind, embed_url,
                                  media_file, media_mime, poster_image, event_date, location, status,
-                                 comments_enabled, published_at)
+                                 comments_enabled, published_at,
+                                 slug_en, title_en, excerpt_en, body_html_en, location_en)
                              VALUES
                                 (:slug, :lang, :title, :excerpt, :body, :type, :category, :sk, :eu,
-                                 :mf, :mm, :pi, :ed, :loc, :st, :ce, :pa)'
+                                 :mf, :mm, :pi, :ed, :loc, :st, :ce, :pa,
+                                 :slug_en, :title_en, :excerpt_en, :body_en, :loc_en)'
                         )->execute([
                             ':slug' => $slug, ':lang' => $lang, ':title' => $title,
                             ':excerpt' => $clean($_POST['excerpt'] ?? '', 500),
@@ -217,6 +240,11 @@ try {
                             ':loc' => $clean($_POST['location'] ?? '', 160),
                             ':st' => $status, ':ce' => $commentsEnabled,
                             ':pa' => $status === 'published' ? $now : null,
+                            ':slug_en' => $slugEn !== '' ? $slugEn : null,
+                            ':title_en' => $clean($_POST['title_en'] ?? '', 255),
+                            ':excerpt_en' => $clean($_POST['excerpt_en'] ?? '', 500),
+                            ':body_en' => (string) ($_POST['body_en'] ?? ''),
+                            ':loc_en' => $clean($_POST['location_en'] ?? '', 160),
                         ]);
                         $savedId = (int) $pdo->lastInsertId();
                     }
@@ -276,10 +304,6 @@ admin_header('Actualités', 'news');
 
       <div class="adm-grid2">
         <div class="adm-field">
-          <label for="title">Titre *</label>
-          <input id="title" name="title" class="adm-input" required maxlength="255" value="<?= e($n['title']) ?>">
-        </div>
-        <div class="adm-field">
           <label for="slug">Slug (URL) — généré depuis le titre si vide</label>
           <input id="slug" name="slug" class="adm-input" maxlength="160" value="<?= e($n['slug']) ?>">
         </div>
@@ -303,24 +327,56 @@ admin_header('Actualités', 'news');
           </select>
         </div>
         <div class="adm-field">
-          <label for="lang">Langue</label>
-          <select id="lang" name="lang" class="adm-select">
-            <option value="fr" <?= ($n['lang'] ?? 'fr') === 'fr' ? 'selected' : '' ?>>Français</option>
-            <option value="en" <?= ($n['lang'] ?? 'fr') === 'en' ? 'selected' : '' ?>>English</option>
-          </select>
+          <label for="event_date">Date de l’événement</label>
+          <input id="event_date" type="date" name="event_date" class="adm-input" value="<?= e($n['event_date']) ?>" style="width:auto">
         </div>
       </div>
 
-      <div class="adm-field">
-        <label for="excerpt">Description courte (chapeau, 500 car. max)</label>
-        <textarea id="excerpt" name="excerpt" class="adm-textarea" rows="2" maxlength="500"><?= e($n['excerpt']) ?></textarea>
+      <?php $enOkN = bilingual_status($n) === 'ok'; ?>
+      <div class="adm-duo">
+        <div class="adm-lang fr">
+          <?php admin_lang_head('fr', 'Français'); ?>
+          <div class="adm-field">
+            <label for="title">Titre *</label>
+            <input id="title" name="title" class="adm-input" required maxlength="255" value="<?= e($n['title']) ?>">
+          </div>
+          <div class="adm-field">
+            <label for="excerpt">Description courte (chapeau, 500 car. max)</label>
+            <textarea id="excerpt" name="excerpt" class="adm-textarea" rows="2" maxlength="500"><?= e($n['excerpt']) ?></textarea>
+          </div>
+          <div class="adm-field">
+            <label for="body">Texte complet (HTML simple autorisé : &lt;p&gt;, &lt;h2&gt;, &lt;ul&gt;, &lt;li&gt;, &lt;a&gt;, &lt;strong&gt;, &lt;em&gt;)</label>
+            <textarea id="body" name="body" class="adm-textarea" rows="7"
+                      style="font-family:Consolas,monospace;font-size:13px"><?= e($n['body_html']) ?></textarea>
+          </div>
+          <div class="adm-field">
+            <label for="location">Lieu</label>
+            <input id="location" name="location" class="adm-input" maxlength="160" value="<?= e($n['location']) ?>">
+          </div>
+        </div>
+        <div class="adm-lang en">
+          <?php admin_lang_head('en', 'English', '#title', '#title_en'); ?>
+          <div class="adm-field">
+            <label for="title_en">Title (English)</label>
+            <input id="title_en" name="title_en" class="adm-input" maxlength="255" value="<?= e($n['title_en'] ?? '') ?>">
+          </div>
+          <div class="adm-field">
+            <label for="excerpt_en">Short description (500 car. max)</label>
+            <textarea id="excerpt_en" name="excerpt_en" class="adm-textarea" rows="2" maxlength="500"><?= e($n['excerpt_en'] ?? '') ?></textarea>
+          </div>
+          <div class="adm-field">
+            <label for="body_en">Full text (simple HTML)</label>
+            <textarea id="body_en" name="body_en" class="adm-textarea" rows="7"
+                      style="font-family:Consolas,monospace;font-size:13px"><?= e($n['body_html_en'] ?? '') ?></textarea>
+          </div>
+          <div class="adm-field">
+            <label for="location_en">Location</label>
+            <input id="location_en" name="location_en" class="adm-input" maxlength="160" value="<?= e($n['location_en'] ?? '') ?>">
+          </div>
+          <p class="adm-help">Laissez vide : la publication n’apparaîtra pas sur la page anglaise.</p>
+        </div>
       </div>
-
-      <div class="adm-field">
-        <label for="body">Texte complet (HTML simple autorisé : &lt;p&gt;, &lt;h2&gt;, &lt;ul&gt;, &lt;li&gt;, &lt;a&gt;, &lt;strong&gt;, &lt;em&gt;)</label>
-        <textarea id="body" name="body" class="adm-textarea" rows="8"
-                  style="font-family:Consolas,monospace;font-size:13px"><?= e($n['body_html']) ?></textarea>
-      </div>
+      <?php admin_copy_script_once(); ?>
 
       <div class="adm-field">
         <label>Source du média</label>
@@ -353,17 +409,6 @@ admin_header('Actualités', 'news');
             <input type="hidden" name="existing_poster" value="<?= e($n['poster_image']) ?>">
           <?php endif; ?>
           <input id="poster" type="file" name="poster" accept=".jpg,.jpeg,.png,.webp">
-        </div>
-        <div class="adm-field">
-          <label for="event_date">Date de l’événement</label>
-          <input id="event_date" type="date" name="event_date" class="adm-input" value="<?= e($n['event_date']) ?>" style="width:auto">
-        </div>
-      </div>
-
-      <div class="adm-grid2">
-        <div class="adm-field">
-          <label for="location">Lieu</label>
-          <input id="location" name="location" class="adm-input" maxlength="160" value="<?= e($n['location']) ?>">
         </div>
         <div class="adm-field">
           <label for="status">Statut</label>

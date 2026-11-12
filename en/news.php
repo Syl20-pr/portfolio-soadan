@@ -20,7 +20,7 @@ if (!isset($ncats[$activeCat])) {
 }
 
 try {
-    $items = news_list(true, $activeCat !== '' ? $activeCat : null, 60);
+    $items = news_list(true, $activeCat !== '' ? $activeCat : null, 60, 'en'); // version EN complète uniquement
 } catch (Throwable $e) {
     log_event('error', 'Public news: unavailable');
     $items = [];
@@ -59,6 +59,7 @@ require __DIR__ . '/../includes/header.php';
       <?php else: ?>
         <div class="news-grid">
           <?php foreach ($items as $n):
+            $n = bilingual_pick($n, 'en'); // champs EN si disponibles
             $ntypes = news_types();
             $typeLabel = $ntypes[$n['type']]['en'] ?? $n['type'];
             $catLabel  = $ncats[$n['category']]['en'] ?? $n['category'];

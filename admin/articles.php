@@ -102,6 +102,25 @@ try {
                     }
                 }
 
+                // --- Champs anglais (même formulaire, migration 003) ---
+                $titleEn = $clean($_POST['title_en'] ?? '', 255);
+                $excerptEn = $clean($_POST['excerpt_en'] ?? '', 500);
+                $contentEn = (string) ($_POST['content_en'] ?? '');
+                $contentEn = str_replace(["\r\n", "\r"], "\n", $contentEn);
+                $seoTitleEn = $clean($_POST['seo_title_en'] ?? '', 160);
+                $seoDescEn = $clean($_POST['seo_description_en'] ?? '', 320);
+                $slugEn = '';
+                if ($titleEn !== '' && db_column_exists('articles', 'title_en')) {
+                    $slugEn = slugify($titleEn);
+                    if ($slugEn !== '') {
+                        $stmt = $pdo->prepare('SELECT id FROM articles WHERE slug_en = :s AND id <> :id LIMIT 1');
+                        $stmt->execute([':s' => $slugEn, ':id' => $id]);
+                        if ($stmt->fetchColumn()) {
+                            $slugEn .= '-' . substr(bin2hex(random_bytes(2)), 0, 4);
+                        }
+                    }
+                }
+
                 // Couverture (facultative).
                 $coverImage = $clean($_POST['existing_cover'] ?? '', 160);
                 if (!empty($_FILES['cover']['name'])) {
@@ -138,6 +157,12 @@ try {
                             : ($status === 'published' ? date('Y-m-d H:i:s') : null),
                         'seo_title' => $seoTitle,
                         'seo_description' => $seoDesc,
+                        'slug_en' => $slugEn,
+                        'title_en' => $titleEn,
+                        'excerpt_en' => $excerptEn,
+                        'content_html_en' => $contentEn,
+                        'seo_title_en' => $seoTitleEn,
+                        'seo_description_en' => $seoDescEn,
                     ], $tags);
                     // Images supplémentaires (galerie façon LinkedIn).
                     $extraFiles = $_FILES['extra_images'] ?? null;
@@ -251,23 +276,8 @@ admin_header('Publications', 'articles');
 
       <div class="adm-grid2">
         <div class="adm-field">
-          <label for="title">Titre *</label>
-          <input id="title" name="title" class="adm-input" required maxlength="255"
-                 value="<?= e($a['title']) ?>">
-        </div>
-        <div class="adm-field">
           <label for="slug">Slug (URL) — généré depuis le titre si vide</label>
           <input id="slug" name="slug" class="adm-input" maxlength="160" value="<?= e($a['slug']) ?>">
-        </div>
-      </div>
-
-      <div class="adm-grid2">
-        <div class="adm-field">
-          <label for="lang">Langue de la publication</label>
-          <select id="lang" name="lang" class="adm-select">
-            <option value="fr" <?= ($a['lang'] ?? 'fr') === 'fr' ? 'selected' : '' ?>>Français</option>
-            <option value="en" <?= ($a['lang'] ?? 'fr') === 'en' ? 'selected' : '' ?>>English</option>
-          </select>
         </div>
         <div class="adm-field">
           <label for="category_id">Catégorie</label>
@@ -282,16 +292,45 @@ admin_header('Publications', 'articles');
         </div>
       </div>
 
-      <div class="adm-field">
-        <label for="excerpt">Résumé (chapeau, 500 car. max)</label>
-        <textarea id="excerpt" name="excerpt" class="adm-textarea" rows="2" maxlength="500"><?= e($a['excerpt']) ?></textarea>
+      <?php // ===== Bilingue côte à côte : FR à gauche, EN à droite =====
+      $enOk = bilingual_status($a) === 'ok';
+      ?>
+      <div class="adm-duo">
+        <div class="adm-lang fr">
+          <?php admin_lang_head('fr', 'Français'); ?>
+          <div class="adm-field">
+            <label for="title">Titre *</label>
+            <input id="title" name="title" class="adm-input" required maxlength="255" value="<?= e($a['title']) ?>">
+          </div>
+          <div class="adm-field">
+            <label for="excerpt">Résumé (chapeau, 500 car. max)</label>
+            <textarea id="excerpt" name="excerpt" class="adm-textarea" rows="2" maxlength="500"><?= e($a['excerpt']) ?></textarea>
+          </div>
+          <div class="adm-field">
+            <label for="content">Contenu (HTML simple autorisé : &lt;p&gt;, &lt;h2&gt;, &lt;ul&gt;, &lt;li&gt;, &lt;a&gt;, &lt;strong&gt;, &lt;em&gt;, &lt;blockquote&gt;) *</label>
+            <textarea id="content" name="content" class="adm-textarea" rows="14" required
+                      style="font-family:Consolas,monospace;font-size:13px"><?= e($a['content_html']) ?></textarea>
+          </div>
+        </div>
+        <div class="adm-lang en">
+          <?php admin_lang_head('en', 'English', '#title', '#title_en'); ?>
+          <div class="adm-field">
+            <label for="title_en">Title (English)</label>
+            <input id="title_en" name="title_en" class="adm-input" maxlength="255" value="<?= e($a['title_en'] ?? '') ?>">
+          </div>
+          <div class="adm-field">
+            <label for="excerpt_en">Excerpt (English, 500 car. max)</label>
+            <textarea id="excerpt_en" name="excerpt_en" class="adm-textarea" rows="2" maxlength="500"><?= e($a['excerpt_en'] ?? '') ?></textarea>
+          </div>
+          <div class="adm-field">
+            <label for="content_en">Content (simple HTML allowed)</label>
+            <textarea id="content_en" name="content_en" class="adm-textarea" rows="14"
+                      style="font-family:Consolas,monospace;font-size:13px"><?= e($a['content_html_en'] ?? '') ?></textarea>
+          </div>
+          <p class="adm-help">Laissez vide : l’article n’apparaîtra pas sur la page anglaise (jamais de français affiché en EN).</p>
+        </div>
       </div>
-
-      <div class="adm-field">
-        <label for="content">Contenu (HTML simple autorisé : &lt;p&gt;, &lt;h2&gt;, &lt;ul&gt;, &lt;li&gt;, &lt;a&gt;, &lt;strong&gt;, &lt;em&gt;, &lt;blockquote&gt;) *</label>
-        <textarea id="content" name="content" class="adm-textarea" rows="16" required
-                  style="font-family:Consolas,monospace;font-size:13px"><?= e($a['content_html']) ?></textarea>
-      </div>
+      <?php admin_copy_script_once(); ?>
 
       <div class="adm-grid2">
         <div class="adm-field">
@@ -356,14 +395,28 @@ admin_header('Publications', 'articles');
         </div>
       </div>
 
-      <div class="adm-grid2">
-        <div class="adm-field">
-          <label for="seo_title">SEO — titre (recommandé ≤ 60 car.)</label>
-          <input id="seo_title" name="seo_title" class="adm-input" maxlength="160" value="<?= e($a['seo_title']) ?>">
+      <div class="adm-duo">
+        <div class="adm-lang fr">
+          <?php admin_lang_head('fr', 'Référencement (SEO)'); ?>
+          <div class="adm-field">
+            <label for="seo_title">SEO — titre (recommandé ≤ 60 car.)</label>
+            <input id="seo_title" name="seo_title" class="adm-input" maxlength="160" value="<?= e($a['seo_title']) ?>">
+          </div>
+          <div class="adm-field">
+            <label for="seo_description">SEO — méta description (≤ 160 car. recommandé)</label>
+            <input id="seo_description" name="seo_description" class="adm-input" maxlength="320" value="<?= e($a['seo_description']) ?>">
+          </div>
         </div>
-        <div class="adm-field">
-          <label for="seo_description">SEO — méta description (≤ 160 car. recommandé)</label>
-          <input id="seo_description" name="seo_description" class="adm-input" maxlength="320" value="<?= e($a['seo_description']) ?>">
+        <div class="adm-lang en">
+          <?php admin_lang_head('en', 'SEO (English)', '#seo_title', '#seo_title_en'); ?>
+          <div class="adm-field">
+            <label for="seo_title_en">SEO — title</label>
+            <input id="seo_title_en" name="seo_title_en" class="adm-input" maxlength="160" value="<?= e($a['seo_title_en'] ?? '') ?>">
+          </div>
+          <div class="adm-field">
+            <label for="seo_description_en">SEO — meta description</label>
+            <input id="seo_description_en" name="seo_description_en" class="adm-input" maxlength="320" value="<?= e($a['seo_description_en'] ?? '') ?>">
+          </div>
         </div>
       </div>
 
@@ -392,10 +445,14 @@ admin_header('Publications', 'articles');
         </thead>
         <tbody>
           <?php foreach ($list as $a): ?>
+            <?php $enSt = bilingual_status($a); ?>
             <tr>
               <td>
                 <strong><?= e(mb_substr((string) $a['title'], 0, 70, 'UTF-8')) ?></strong><br>
-                <span class="adm-muted">/articles/<?= e($a['slug']) ?></span>
+                <span class="adm-muted">/articles/<?= e($a['slug']) ?></span><br>
+                <span class="adm-badge-en <?= $enSt === 'ok' ? 'ok' : 'missing' ?>">
+                  <?= $enSt === 'ok' ? 'EN complet' : ($enSt === 'missing' ? 'EN manquant' : 'FR seulement') ?>
+                </span>
               </td>
               <td><?= e($a['category_fr'] !== null ? $a['category_fr'] : '—') ?></td>
               <td><?= e(strtoupper((string) $a['lang'])) ?></td>

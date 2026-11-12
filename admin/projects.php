@@ -107,6 +107,13 @@ try {
                         'objectives_html' => (string) ($_POST['objectives'] ?? ''),
                         'results_html' => (string) ($_POST['results'] ?? ''),
                         'partners' => $clean($_POST['partners'] ?? '', 400),
+                        'title_en' => $clean($_POST['title_en'] ?? '', 200),
+                        'role_en' => $clean($_POST['role_en'] ?? '', 160),
+                        'summary_en' => $clean($_POST['summary_en'] ?? '', 400),
+                        'description_en' => (string) ($_POST['description_en'] ?? ''),
+                        'objectives_en' => (string) ($_POST['objectives_en'] ?? ''),
+                        'results_en' => (string) ($_POST['results_en'] ?? ''),
+                        'partners_en' => $clean($_POST['partners_en'] ?? '', 400),
                         'image' => $image,
                         'external_url' => $url,
                         'date_start' => $ds !== '' && strtotime($ds) ? date('Y-m-d', strtotime($ds)) : null,
@@ -206,49 +213,88 @@ admin_header('Projets', 'projects');
 
       <div class="adm-grid2">
         <div class="adm-field">
-          <label for="title">Titre *</label>
-          <input id="title" name="title" class="adm-input" required maxlength="200" value="<?= e($p['title']) ?>">
-        </div>
-        <div class="adm-field">
           <label for="slug">Slug (URL) — généré depuis le titre si vide</label>
           <input id="slug" name="slug" class="adm-input" maxlength="160" value="<?= e($p['slug']) ?>">
         </div>
       </div>
 
-      <div class="adm-grid2">
-        <div class="adm-field">
-          <label for="role">Rôle occupé</label>
-          <input id="role" name="role" class="adm-input" maxlength="160" value="<?= e($p['role']) ?>">
+      <?php $enOkP = bilingual_status($p) === 'ok'; ?>
+      <div class="adm-duo">
+        <div class="adm-lang fr">
+          <?php admin_lang_head('fr', 'Français'); ?>
+          <div class="adm-field">
+            <label for="title">Titre *</label>
+            <input id="title" name="title" class="adm-input" required maxlength="200" value="<?= e($p['title']) ?>">
+          </div>
+          <div class="adm-grid2">
+            <div class="adm-field">
+              <label for="role">Rôle occupé</label>
+              <input id="role" name="role" class="adm-input" maxlength="160" value="<?= e($p['role']) ?>">
+            </div>
+            <div class="adm-field">
+              <label for="partners">Partenaires</label>
+              <input id="partners" name="partners" class="adm-input" maxlength="400" value="<?= e($p['partners']) ?>">
+            </div>
+          </div>
+          <div class="adm-field">
+            <label for="summary">Résumé (400 car. max)</label>
+            <textarea id="summary" name="summary" class="adm-textarea" rows="2" maxlength="400"><?= e($p['summary']) ?></textarea>
+          </div>
+          <div class="adm-field">
+            <label for="description">Description (HTML simple autorisé)</label>
+            <textarea id="description" name="description" class="adm-textarea" rows="7"
+                      style="font-family:Consolas,monospace;font-size:13px"><?= e($p['description_html']) ?></textarea>
+          </div>
+          <div class="adm-field">
+            <label for="objectives">Objectifs (HTML simple, une puce &lt;li&gt; par objectif dans un &lt;ul&gt;)</label>
+            <textarea id="objectives" name="objectives" class="adm-textarea" rows="4"
+                      style="font-family:Consolas,monospace;font-size:13px"><?= e($p['objectives_html']) ?></textarea>
+          </div>
+          <div class="adm-field">
+            <label for="results">Résultats (HTML simple)</label>
+            <textarea id="results" name="results" class="adm-textarea" rows="4"
+                      style="font-family:Consolas,monospace;font-size:13px"><?= e($p['results_html']) ?></textarea>
+          </div>
         </div>
-        <div class="adm-field">
-          <label for="partners">Partenaires</label>
-          <input id="partners" name="partners" class="adm-input" maxlength="400" value="<?= e($p['partners']) ?>">
+        <div class="adm-lang en">
+          <?php admin_lang_head('en', 'English', '#title', '#title_en'); ?>
+          <div class="adm-field">
+            <label for="title_en">Title (English)</label>
+            <input id="title_en" name="title_en" class="adm-input" maxlength="200" value="<?= e($p['title_en'] ?? '') ?>">
+          </div>
+          <div class="adm-grid2">
+            <div class="adm-field">
+              <label for="role_en">Role (English)</label>
+              <input id="role_en" name="role_en" class="adm-input" maxlength="160" value="<?= e($p['role_en'] ?? '') ?>">
+            </div>
+            <div class="adm-field">
+              <label for="partners_en">Partners (English)</label>
+              <input id="partners_en" name="partners_en" class="adm-input" maxlength="400" value="<?= e($p['partners_en'] ?? '') ?>">
+            </div>
+          </div>
+          <div class="adm-field">
+            <label for="summary_en">Summary (400 car. max)</label>
+            <textarea id="summary_en" name="summary_en" class="adm-textarea" rows="2" maxlength="400"><?= e($p['summary_en'] ?? '') ?></textarea>
+          </div>
+          <div class="adm-field">
+            <label for="description_en">Description (simple HTML allowed)</label>
+            <textarea id="description_en" name="description_en" class="adm-textarea" rows="7"
+                      style="font-family:Consolas,monospace;font-size:13px"><?= e($p['description_en'] ?? '') ?></textarea>
+          </div>
+          <div class="adm-field">
+            <label for="objectives_en">Objectives (simple HTML)</label>
+            <textarea id="objectives_en" name="objectives_en" class="adm-textarea" rows="4"
+                      style="font-family:Consolas,monospace;font-size:13px"><?= e($p['objectives_en'] ?? '') ?></textarea>
+          </div>
+          <div class="adm-field">
+            <label for="results_en">Results (simple HTML)</label>
+            <textarea id="results_en" name="results_en" class="adm-textarea" rows="4"
+                      style="font-family:Consolas,monospace;font-size:13px"><?= e($p['results_en'] ?? '') ?></textarea>
+          </div>
+          <p class="adm-help">Laissez vide : le projet n’apparaîtra pas sur la page anglaise.</p>
         </div>
       </div>
-
-      <div class="adm-field">
-        <label for="summary">Résumé (400 car. max)</label>
-        <textarea id="summary" name="summary" class="adm-textarea" rows="2" maxlength="400"><?= e($p['summary']) ?></textarea>
-      </div>
-
-      <div class="adm-field">
-        <label for="description">Description (HTML simple autorisé)</label>
-        <textarea id="description" name="description" class="adm-textarea" rows="8"
-                  style="font-family:Consolas,monospace;font-size:13px"><?= e($p['description_html']) ?></textarea>
-      </div>
-
-      <div class="adm-grid2">
-        <div class="adm-field">
-          <label for="objectives">Objectifs (HTML simple, une puce &lt;li&gt; par objectif dans un &lt;ul&gt;)</label>
-          <textarea id="objectives" name="objectives" class="adm-textarea" rows="5"
-                    style="font-family:Consolas,monospace;font-size:13px"><?= e($p['objectives_html']) ?></textarea>
-        </div>
-        <div class="adm-field">
-          <label for="results">Résultats (HTML simple)</label>
-          <textarea id="results" name="results" class="adm-textarea" rows="5"
-                    style="font-family:Consolas,monospace;font-size:13px"><?= e($p['results_html']) ?></textarea>
-        </div>
-      </div>
+      <?php admin_copy_script_once(); ?>
 
       <div class="adm-grid2">
         <div class="adm-field">

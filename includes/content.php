@@ -84,34 +84,124 @@ function category_label(array $cat, string $lang): string
 // -----------------------------------------------------------------------------
 
 /**
+ * Indique si la colonne bilingue $field existe sur la table $table.
+ * Sert à rester compatible avec les bases pas encore migrées en 003.
+ */
+function db_column_exists(string $table, string $field): bool
+{
+    static $cache = [];
+    $key = $table . '.' . $field;
+    if (array_key_exists($key, $cache)) {
+        return $cache[$key];
+    }
+    try {
+        if (db_driver() === 'sqlite') {
+            $cols = db()->query('PRAGMA table_info(' . $table . ')')->fetchAll(PDO::FETCH_COLUMN, 1);
+            return $cache[$key] = in_array($field, $cols, true);
+        }
+        $stmt = db()->prepare(
+            'SELECT COUNT(*) FROM information_schema.COLUMNS
+             WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = :t AND COLUMN_NAME = :c'
+        );
+        $stmt->execute([':t' => $table, ':c' => $field]);
+        return $cache[$key] = (bool) $stmt->fetchColumn();
+    } catch (Throwable $e) {
+        return $cache[$key] = false;
+    }
+}
+
+/**
+ * Complétude EN d'une ligne bilingue : 'ok' | 'missing' | 'none' (pas de
+ * colonnes _en — base non migrée). Utilisée pour les indicateurs d'admin
+ * et pour le filtrage des pages anglaises.
+ */
+function bilingual_status(array $row): string
+{
+    if (!isset($row['title_en'])) {
+        return 'none';
+    }
+    $hasAny = false;
+    foreach ($row as $k => $v) {
+        if (is_string($k) && str_ends_with($k, '_en') && trim((string) $v) !== '') {
+            $hasAny = true;
+            break;
+        }
+    }
+    return $hasAny ? 'ok' : 'missing';
+}
+
+/**
+ *Vue normalisée d'une ligne bilingue pour l'affichage dans $lang :
+ * retourne title/excerpt/content_html/seo_… contenant la valeur de la
+ * langue demandée. Principe : si la version $lang est vide alors que la
+ * ligne possède des colonnes bilingues, les champs restent VIDES (jamais
+ * de français dans la page anglaise) — l'appelant filtre la ligne.
+ *
+ * @param array<string,mixed> $row
+ * @return array<string,mixed> mêmes clés, valeurs localisées
+ */
+function bilingual_pick(array $row, string $lang): array
+{
+    if ($lang !== 'en' || bilingual_status($row) !== 'ok') {
+        return $row;
+    }
+    $out = $row;
+    foreach ($row as $k => $v) {
+        if (is_string($k) && str_ends_with($k, '_en')) {
+            $base = substr($k, 0, -3);
+            $out[$base] = $v;          // champ affiché dans la langue EN
+            $out[$k] = $v;             // conservé pour référence
+        }
+    }
+    // Slug anglais distinct s'il existe (page détail EN).
+    if (!empty($row['slug_en'])) {
+        $out['slug'] = $row['slug_en'];
+    }
+    return $out;
+}
+
+/**
  * Liste des articles publiés (ou tous si $onlyPublished = false).
+ * Chaque ligne porte ses champs FR et EN (une ligne = les deux langues).
+ * $lang !== null : filtre — les articles sans version anglaise n'apparaissent
+ * PAS sur les pages anglaises (jamais de français affiché en EN).
  *
  * @return array<int,array<string,mixed>>
  */
-function articles_list(bool $onlyPublished = true, int $limit = 100): array
+function articles_list(bool $onlyPublished = true, int $limit = 100, ?string $lang = null): array
 {
     $sql = 'SELECT a.*, c.slug AS category_slug, c.name_fr AS category_fr, c.name_en AS category_en
             FROM articles a LEFT JOIN categories c ON c.id = a.category_id';
+    $where = [];
     $params = [];
     if ($onlyPublished) {
-        $sql .= ' WHERE a.status = "published"';
+        $where[] = 'a.status = "published"';
     }
+    $sql .= $where ? ' WHERE ' . implode(' AND ', $where) : '';
     $sql .= ' ORDER BY a.published_at DESC, a.id DESC LIMIT ' . max(1, $limit);
     $stmt = db()->prepare($sql);
     $stmt->execute($params);
-    return $stmt->fetchAll();
+    $rows = $stmt->fetchAll();
+    if ($lang === 'en') {
+        $rows = array_values(array_filter($rows, static fn ($r) => bilingual_status($r) === 'ok'));
+    }
+    return $rows;
 }
 
-/** Retourne un article par son slug (publié uniquement côté public). */
-function article_by_slug(string $slug, bool $onlyPublished = true): ?array
+/**
+ * Retourne un article par son slug (publié uniquement côté public).
+ * $lang='en' : cherche d'abord slug_en (ligne bilingue dont la version EN
+ * est complète), puis le slug FR pour compatibilité des anciens liens.
+ */
+function article_by_slug(string $slug, bool $onlyPublished = true, string $lang = 'fr'): ?array
 {
     $sql = 'SELECT a.*, c.slug AS category_slug, c.name_fr AS category_fr, c.name_en AS category_en
             FROM articles a LEFT JOIN categories c ON c.id = a.category_id
-            WHERE a.slug = :slug';
+            WHERE (a.slug = :slug OR a.slug_en = :slug)';
     if ($onlyPublished) {
         $sql .= ' AND a.status = "published"';
     }
-    $sql .= ' LIMIT 1';
+    $sql .= ' ORDER BY (a.slug = :slug) DESC LIMIT 1';
     $stmt = db()->prepare($sql);
     $stmt->execute([':slug' => $slug]);
     $row = $stmt->fetch();
@@ -145,40 +235,68 @@ function article_tags(int $articleId): array
  * @param string[]            $tags mots-clés
  * @return int identifiant de l'article
  */
+/**
+ * Enregistre un article : UNE ligne porte les deux langues (migration 003).
+ * $data contient les champs FR (_fr implicites) ET les champs *_en facultatifs
+ * (title_en, excerpt_en, content_html_en, seo_title_en, seo_description_en,
+ * slug_en). Un seul « Enregistrer » écrit les deux versions.
+ */
 function article_save(PDO $pdo, array $data, array $tags): int
 {
+    $hasBilingual = db_column_exists('articles', 'title_en');
+
+    $enCols = [
+        'slug_en'          => ':slug_en',
+        'title_en'         => ':title_en',
+        'excerpt_en'       => ':excerpt_en',
+        'content_html_en'  => ':content_en',
+        'seo_title_en'     => ':seo_title_en',
+        'seo_description_en' => ':seo_desc_en',
+    ];
+
     if (!empty($data['id'])) {
-        $pdo->prepare(
-            'UPDATE articles SET
-                slug = :slug, title = :title, excerpt = :excerpt, content_html = :content,
+        $sets = 'slug = :slug, title = :title, excerpt = :excerpt, content_html = :content,
                 cover_image = :cover, category_id = :category, status = :status,
-                published_at = :published, seo_title = :seo_title, seo_description = :seo_desc,
-                lang = :lang
-             WHERE id = :id'
-        )->execute([
+                published_at = :published, seo_title = :seo_title, seo_description = :seo_desc';
+        $params = [
             ':slug' => $data['slug'], ':title' => $data['title'], ':excerpt' => $data['excerpt'],
             ':content' => $data['content'], ':cover' => $data['cover_image'],
             ':category' => $data['category_id'], ':status' => $data['status'],
             ':published' => $data['published_at'], ':seo_title' => $data['seo_title'],
-            ':seo_desc' => $data['seo_description'], ':lang' => $data['lang'], ':id' => (int) $data['id'],
-        ]);
+            ':seo_desc' => $data['seo_description'], ':id' => (int) $data['id'],
+        ];
+        if ($hasBilingual) {
+            foreach ($enCols as $col => $ph) {
+                $sets .= ', ' . $col . ' = ' . $ph;
+                $params[$ph] = (string) ($data[$col] ?? '');
+            }
+        }
+        $pdo->prepare('UPDATE articles SET ' . $sets . ' WHERE id = :id')->execute($params);
         $articleId = (int) $data['id'];
         $pdo->prepare('DELETE FROM article_tags WHERE article_id = :id')->execute([':id' => $articleId]);
     } else {
-        $pdo->prepare(
-            'INSERT INTO articles
-                (slug, lang, title, excerpt, content_html, cover_image, category_id, status,
-                 published_at, seo_title, seo_description)
-             VALUES
-                (:slug, :lang, :title, :excerpt, :content, :cover, :category, :status,
-                 :published, :seo_title, :seo_desc)'
-        )->execute([
-            ':slug' => $data['slug'], ':lang' => $data['lang'], ':title' => $data['title'],
+        $cols = ['slug', 'lang', 'title', 'excerpt', 'content_html', 'cover_image', 'category_id',
+                 'status', 'published_at', 'seo_title', 'seo_description'];
+        $phs   = [':slug', ':lang', ':title', ':excerpt', ':content', ':cover', ':category',
+                  ':status', ':published', ':seo_title', ':seo_desc'];
+        $params = [
+            ':slug' => $data['slug'], ':lang' => $data['lang'] ?? 'fr', ':title' => $data['title'],
             ':excerpt' => $data['excerpt'], ':content' => $data['content'], ':cover' => $data['cover_image'],
             ':category' => $data['category_id'], ':status' => $data['status'],
             ':published' => $data['published_at'], ':seo_title' => $data['seo_title'],
             ':seo_desc' => $data['seo_description'],
-        ]);
+        ];
+        if ($hasBilingual) {
+            foreach ($enCols as $col => $ph) {
+                $cols[] = $col;
+                $phs[] = $ph;
+                $params[$ph] = (string) ($data[$col] ?? '');
+            }
+        }
+        $pdo->prepare(
+            'INSERT INTO articles (' . implode(', ', $cols) . ')
+             VALUES (' . implode(', ', $phs) . ')'
+        )->execute($params);
         $articleId = (int) $pdo->lastInsertId();
     }
 
@@ -218,15 +336,23 @@ function slugify(string $text): string
 //  Projets
 // -----------------------------------------------------------------------------
 
-/** @return array<int,array<string,mixed>> */
-function projects_list(bool $onlyPublished = true): array
+/**
+ * Liste des projets publiés. $lang='en' : ne retient que les projets dont
+ * la version anglaise est complète (jamais de français sur les pages EN).
+ * @return array<int,array<string,mixed>>
+ */
+function projects_list(bool $onlyPublished = true, ?string $lang = null): array
 {
     $sql = 'SELECT * FROM projects';
     if ($onlyPublished) {
         $sql .= ' WHERE status = "published"';
     }
     $sql .= ' ORDER BY sort_order, id DESC';
-    return db()->query($sql)->fetchAll();
+    $rows = db()->query($sql)->fetchAll();
+    if ($lang === 'en') {
+        $rows = array_values(array_filter($rows, static fn ($r) => bilingual_status($r) === 'ok'));
+    }
+    return $rows;
 }
 
 /** Retourne un projet (par id ou par slug). */
@@ -238,39 +364,60 @@ function project_get(int $id): ?array
     return $row !== false ? $row : null;
 }
 
-/** Insère ou met à jour un projet. @return int */
+/**
+ * Insère ou met à jour un projet : UNE ligne porte FR + EN (migration 003).
+ * Champs EN facultatifs : title_en, role_en, summary_en, description_en,
+ * objectives_en, results_en, partners_en. @return int
+ */
 function project_save(PDO $pdo, array $data): int
 {
-    if (!empty($data['id'])) {
-        $pdo->prepare(
-            'UPDATE projects SET slug = :slug, title = :title, role = :role, summary = :summary,
-                description_html = :descr, objectives_html = :obj, results_html = :res,
-                partners = :partners, image = :image, external_url = :url,
-                date_start = :ds, date_end = :de, status = :status, sort_order = :sort
-             WHERE id = :id'
-        )->execute([
-            ':slug' => $data['slug'], ':title' => $data['title'], ':role' => $data['role'],
-            ':summary' => $data['summary'], ':descr' => $data['description_html'],
-            ':obj' => $data['objectives_html'], ':res' => $data['results_html'],
-            ':partners' => $data['partners'], ':image' => $data['image'],
-            ':url' => $data['external_url'], ':ds' => $data['date_start'], ':de' => $data['date_end'],
-            ':status' => $data['status'], ':sort' => $data['sort_order'], ':id' => (int) $data['id'],
-        ]);
-        return (int) $data['id'];
-    }
-    $pdo->prepare(
-        'INSERT INTO projects (slug, title, role, summary, description_html, objectives_html,
-            results_html, partners, image, external_url, date_start, date_end, status, sort_order)
-         VALUES (:slug, :title, :role, :summary, :descr, :obj, :res, :partners, :image,
-            :url, :ds, :de, :status, :sort)'
-    )->execute([
+    $hasBilingual = db_column_exists('projects', 'title_en');
+    $enMap = [
+        'title_en' => ':title_en', 'role_en' => ':role_en', 'summary_en' => ':summary_en',
+        'description_en' => ':descr_en', 'objectives_en' => ':obj_en',
+        'results_en' => ':res_en', 'partners_en' => ':partners_en',
+    ];
+
+    $baseCols = ['slug', 'title', 'role', 'summary', 'description_html', 'objectives_html',
+                 'results_html', 'partners', 'image', 'external_url', 'date_start', 'date_end',
+                 'status', 'sort_order'];
+    $basePh   = [':slug', ':title', ':role', ':summary', ':descr', ':obj', ':res', ':partners',
+                 ':image', ':url', ':ds', ':de', ':status', ':sort'];
+    $baseParams = [
         ':slug' => $data['slug'], ':title' => $data['title'], ':role' => $data['role'],
         ':summary' => $data['summary'], ':descr' => $data['description_html'],
         ':obj' => $data['objectives_html'], ':res' => $data['results_html'],
-        ':partners' => $data['partners'], ':image' => $data['image'], ':url' => $data['external_url'],
-        ':ds' => $data['date_start'], ':de' => $data['date_end'],
+        ':partners' => $data['partners'], ':image' => $data['image'],
+        ':url' => $data['external_url'], ':ds' => $data['date_start'], ':de' => $data['date_end'],
         ':status' => $data['status'], ':sort' => $data['sort_order'],
-    ]);
+    ];
+
+    $enCols = [];
+    $enPhs = [];
+    if ($hasBilingual) {
+        foreach ($enMap as $col => $ph) {
+            $enCols[] = $col;
+            $enPhs[] = $ph;
+            $baseParams[$ph] = (string) ($data[$col] ?? '');
+        }
+    }
+
+    if (!empty($data['id'])) {
+        $sets = [];
+        foreach ($baseCols as $i => $c) {
+            $sets[] = $c . ' = ' . $basePh[$i];
+        }
+        foreach ($enCols as $i => $c) {
+            $sets[] = $c . ' = ' . $enPhs[$i];
+        }
+        $baseParams[':id'] = (int) $data['id'];
+        $pdo->prepare('UPDATE projects SET ' . implode(', ', $sets) . ' WHERE id = :id')->execute($baseParams);
+        return (int) $data['id'];
+    }
+    $pdo->prepare(
+        'INSERT INTO projects (' . implode(', ', array_merge($baseCols, $enCols)) . ')
+         VALUES (' . implode(', ', array_merge($basePh, $enPhs)) . ')'
+    )->execute($baseParams);
     return (int) $pdo->lastInsertId();
 }
 
@@ -577,7 +724,7 @@ function news_embed_valid(string $url): bool
 }
 
 /** Liste des publications (admin ou public). @return array<int,array<string,mixed>> */
-function news_list(bool $onlyPublished = true, ?string $category = null, int $limit = 60): array
+function news_list(bool $onlyPublished = true, ?string $category = null, int $limit = 60, ?string $lang = null): array
 {
     $sql = 'SELECT * FROM news_items';
     $where = [];
@@ -595,21 +742,34 @@ function news_list(bool $onlyPublished = true, ?string $category = null, int $li
     $sql .= ' ORDER BY COALESCE(published_at, event_date, created_at) DESC, id DESC LIMIT ' . max(1, $limit);
     $stmt = db()->prepare($sql);
     $stmt->execute($params);
-    return $stmt->fetchAll();
+    $rows = $stmt->fetchAll();
+    if ($lang === 'en') {
+        $rows = array_values(array_filter($rows, static fn ($r) => bilingual_status($r) === 'ok'));
+    }
+    return $rows;
 }
 
-/** Retourne une publication par slug. */
-function news_by_slug(string $slug, bool $onlyPublished = true): ?array
+/**
+ * Retourne une publication par slug. $lang='en' : cherche d'abord slug_en,
+ * et retourne null si la publication n'a pas de version anglaise complète.
+ */
+function news_by_slug(string $slug, bool $onlyPublished = true, string $lang = 'fr'): ?array
 {
-    $sql = 'SELECT * FROM news_items WHERE slug = :slug';
+    $sql = 'SELECT * FROM news_items WHERE (slug = :slug OR slug_en = :slug)';
     if ($onlyPublished) {
         $sql .= ' AND status = \'published\'';
     }
-    $sql .= ' LIMIT 1';
+    $sql .= ' ORDER BY (slug = :slug) DESC LIMIT 1';
     $stmt = db()->prepare($sql);
     $stmt->execute([':slug' => $slug]);
     $row = $stmt->fetch();
-    return $row !== false ? $row : null;
+    if ($row === false) {
+        return null;
+    }
+    if ($lang === 'en' && bilingual_status($row) !== 'ok') {
+        return null; // pas de version anglaise : jamais de FR dans la page EN
+    }
+    return $row;
 }
 
 /** Retourne une publication par identifiant (administration). */
