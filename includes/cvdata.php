@@ -92,31 +92,25 @@ function cv_personal_get(string $lang): array
 /** Enregistre les informations personnelles d'une langue. */
 function cv_personal_save(string $lang, array $data): void
 {
-    $lang = $lang === 'en' ? 'en' : 'fr';
-    $clean = static function ($v, int $max): string {
-        $v = is_scalar($v) ? (string) $v : '';
-        $v = trim(preg_replace('/[\x00-\x08\x0B\x0C\x0E-\x1F]/u', '', $v) ?? '');
-        return function_exists('mb_substr') ? mb_substr($v, 0, $max, 'UTF-8') : substr($v, 0, $max);
-    };
-    db()->prepare(
-        'INSERT INTO cv_personal (lang, full_name, headline, summary, email, phone, location, website, linkedin, nationality)
-         VALUES (:lang, :fn, :hl, :su, :em, :ph, :lo, :we, :li, :na)
-         ON DUPLICATE KEY UPDATE
-            full_name = VALUES(full_name), headline = VALUES(headline), summary = VALUES(summary),
-            email = VALUES(email), phone = VALUES(phone), location = VALUES(location),
-            website = VALUES(website), linkedin = VALUES(linkedin), nationality = VALUES(nationality)'
-    )->execute([
-        ':lang' => $lang,
-        ':fn' => $clean($data['full_name'] ?? '', 160),
-        ':hl' => $clean($data['headline'] ?? '', 200),
-        ':su' => $clean($data['summary'] ?? '', 2000),
-        ':em' => $clean($data['email'] ?? '', 254),
-        ':ph' => $clean($data['phone'] ?? '', 40),
-        ':lo' => $clean($data['location'] ?? '', 160),
-        ':we' => $clean($data['website'] ?? '', 300),
-        ':li' => $clean($data['linkedin'] ?? '', 300),
-        ':na' => $clean($data['nationality'] ?? '', 80),
-    ]);
+    $lang = normalize_lang($lang);
+    $cols = ['full_name', 'headline', 'summary', 'email', 'phone', 'location',
+             'website', 'linkedin', 'nationality'];
+    $pdo = db();
+    // Existe-t-il déjà une ligne pour cette langue ?
+    $chk = $pdo->prepare('SELECT lang FROM cv_personal WHERE lang = :l');
+    $chk->execute([':l' => $lang]);
+    $params = [':lang' => $lang];
+    foreach ($cols as $c) {
+        $params[':' . $c] = (string) ($data[$c] ?? '');
+    }
+    if ($chk->fetchColumn() !== false) {
+        $sets = implode(', ', array_map(static fn ($c) => "$c = :$c", $cols));
+        $pdo->prepare('UPDATE cv_personal SET ' . $sets . ' WHERE lang = :lang')->execute($params);
+    } else {
+        $colList = implode(', ', array_merge(['lang'], $cols));
+        $phList = implode(', ', array_map(static fn ($c) => ":$c", array_merge(['lang'], $cols)));
+        $pdo->prepare("INSERT INTO cv_personal ($colList) VALUES ($phList)")->execute($params);
+    }
 }
 
 // -----------------------------------------------------------------------------
@@ -310,7 +304,7 @@ function cv_state_set_template(string $lang, string $template): void
 function cv_state_publish(string $lang, string $file): void
 {
     db()->prepare(
-        'UPDATE cv_state SET status = "published", published_file = :f, published_at = NOW() WHERE lang = :l'
+        'UPDATE cv_state SET status = \'published\', published_file = :f, published_at = ' . sql_now() . ' WHERE lang = :l'
     )->execute([':f' => $file, ':l' => $lang]);
 }
 

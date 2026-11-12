@@ -39,48 +39,22 @@ if ($mode === 'preview') {
 }
 
 // mode=download : URL STABLE du CV (le site pointe toujours ici).
-// Priorité : GÉNÉRATION À LA VOLÉE dans la langue demandée (le CV suit donc la
-// langue du site : version anglaise traduite automatiquement du français),
-// puis repli : CV publié (migration 002) → CV actif (migration 001) → PDF
-// statique d'origine. Réponse jamais mise en cache : une nouvelle publication
-// ou une modification de données est immédiatement reflétée.
+// ORDRE DE PRIORITÉ (une publication remplace IMMÉDIATEMENT l'ancienne) :
+//   1. fichier publié par le générateur (cv_state.published_file, migr. 002) ;
+//   2. CV actif de l'historique cv_documents (migr. 001) ;
+//   3. PDF statique d'origine de documents/.
+// Il n'y a PLUS de génération à la volée en mode download (c'était la cause
+// du bug « le CV ne change pas après publication » : le flux ignorait le
+// fichier publié et regénérait depuis les données brutes). L'aperçu à la
+// volée reste disponible en mode=preview, réservé à l'administrateur.
 // Aucune erreur/warning PHP dans le flux du fichier : le PDF doit commencer
-// par %PDF, sinon le navigateur le considère corrompu (bug constaté : un
-// Deprecated s'imprimait avant les en-têtes).
+// par %PDF, sinon le navigateur le considère corrompu.
 ini_set('display_errors', '0');
 error_reporting(E_ALL & ~E_DEPRECATED & ~E_WARNING);
 while (ob_get_level() > 0) {
     ob_end_clean(); // supprime toute sortie parasite accumulée (BOM, notice…)
 }
 
-try {
-    $cv = cv_build($lang);
-    // Ne générer à la volée QUE si la base contient réellement du contenu :
-    // au moins une rubrique (expérience, formation…) alimentée. Un simple
-    // profil ne suffit pas : un PDF quasi vide écraserait à tort le CV
-    // publié / statique de la langue demandée.
-    $hasContent = false;
-    foreach ($cv['sections'] as $section) {
-        if (!empty($section['data']['items'])) {
-            $hasContent = true;
-            break;
-        }
-    }
-    $pdf = $hasContent ? cv_pdf_render($cv, (string) $cv['template'], 'S') : '';
-    if (is_string($pdf) && $pdf !== '' && strncmp($pdf, '%PDF', 4) === 0) {
-        header('Content-Type: application/pdf');
-        header('Content-Disposition: attachment; filename="' . $slugName . '"');
-        header('Content-Length: ' . strlen($pdf));
-        header('X-Content-Type-Options: nosniff');
-        header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');
-        header('Pragma: no-cache');
-        header('Expires: 0');
-        echo $pdf;
-        exit;
-    }
-} catch (Throwable $e) {
-    // Génération impossible (base indisponible, etc.) : repli ci-dessous.
-}
 $candidates = [];
 try {
     $state = cv_state_get($lang);
