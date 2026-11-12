@@ -1,0 +1,36 @@
+# =============================================================================
+#  Portfolio SKS — Répertoire uploads : aucune exécution de code possible
+# =============================================================================
+#  Les fichiers servis ici sont uniquement des images et des PDF.
+#  Aucun script ne doit jamais être exécuté depuis ce répertoire.
+
+<FilesMatch "\.(php|php3|php4|php5|php7|phtml|phar|cgi|pl|py|sh|asp|aspx|jsp)$">
+    Require all denied
+</FilesMatch>
+
+<IfModule mod_php7.c>
+    php_flag engine off
+</IfModule>
+<IfModule mod_php.c>
+    php_flag engine off
+</IfModule>
+
+Options -Indexes -ExecCGI
+
+AddType image/jpeg .jpg .jpeg
+AddType image/png .png
+AddType image/webp .webp
+AddType application/pdf .pdf
+AddType video/mp4 .mp4
+AddType audio/mpeg .mp3
+AddType audio/mp4 .m4a
+AddType audio/ogg .ogg .oga
+AddDefaultCharset Off
+
+# Types de médias servis en streaming léger (pas de PHP, pas de réécriture).
+<IfModule mod_headers.c>
+    <FilesMatch "\.(mp4|m4a|mp3|ogg|oga)$">
+        Header set Accept-Ranges bytes
+        Header set Cache-Control "public, max-age=604800"
+    </FilesMatch>
+</IfModule>

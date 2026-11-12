@@ -1,0 +1,9 @@
+User-agent: *
+Disallow: /admin/
+Disallow: /actions/
+Disallow: /includes/
+Disallow: /logs/
+Disallow: /database/
+
+# À renseigner avec votre domaine réel au déploiement :
+# Sitemap: https://votre-domaine.tld/sitemap.xml

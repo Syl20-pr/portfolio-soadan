@@ -1,0 +1,10 @@
+# =============================================================================
+#  Dossier actions/ — les scripts ne doivent être appelés qu'en POST.
+#  L'accès direct en GET est redirigé vers la page de contact.
+# =============================================================================
+
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+    RewriteCond %{REQUEST_METHOD} !=POST
+    RewriteRule ^contact\.php$ ../contact.php [R=303,L]
+</IfModule>

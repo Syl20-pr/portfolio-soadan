@@ -1,0 +1,82 @@
+{
+  "observatory": "African Digital Sovereignty Index (ADSI)",
+  "edition": "2026 Sovereign Benchmarks",
+  "methodology": "Weighted Multi-Pillar Composite (Legal 30%, Infrastructure 25%, Cyber Defense 25%, Innovation 20%)",
+  "countries": [
+    {
+      "iso3": "TGO",
+      "name": "Togo",
+      "rec": "CEDEAO/ECOWAS",
+      "malaboRatified": true,
+      "nationalCert": "CERT.tg (Operational)",
+      "dataProtectionLaw": "Loi N° 2019-014 (IPDCP active)",
+      "sovereignDataCenter": "Lomé Data Centre (Tier III Certified)",
+      "scores": {
+        "legal": 88,
+        "infrastructure": 82,
+        "cyberDefense": 85,
+        "innovation": 72
+      }
+    },
+    {
+      "iso3": "RWA",
+      "name": "Rwanda",
+      "rec": "EAC",
+      "malaboRatified": true,
+      "nationalCert": "National Cyber Security Authority (NCSA)",
+      "dataProtectionLaw": "Law N° 058/2021",
+      "sovereignDataCenter": "Kigali Innovation City Tier III",
+      "scores": {
+        "legal": 92,
+        "infrastructure": 85,
+        "cyberDefense": 89,
+        "innovation": 86
+      }
+    },
+    {
+      "iso3": "GHA",
+      "name": "Ghana",
+      "rec": "CEDEAO/ECOWAS",
+      "malaboRatified": true,
+      "nationalCert": "Cybersecurity Authority (CSA Ghana)",
+      "dataProtectionLaw": "Data Protection Act 2012 (Act 843)",
+      "sovereignDataCenter": "Accra National Data Centre",
+      "scores": {
+        "legal": 90,
+        "infrastructure": 80,
+        "cyberDefense": 87,
+        "innovation": 81
+      }
+    },
+    {
+      "iso3": "SEN",
+      "name": "Sénégal",
+      "rec": "CEDEAO/ECOWAS",
+      "malaboRatified": true,
+      "nationalCert": "CERT-SN / SENUM",
+      "dataProtectionLaw": "Loi 2008-12 (CDP)",
+      "sovereignDataCenter": "Diamniadio National Data Center",
+      "scores": {
+        "legal": 85,
+        "infrastructure": 83,
+        "cyberDefense": 81,
+        "innovation": 78
+      }
+    },
+    {
+      "iso3": "KEN",
+      "name": "Kenya",
+      "rec": "EAC",
+      "malaboRatified": false,
+      "nationalCert": "National KE-CIRT/CC",
+      "dataProtectionLaw": "Data Protection Act 2019 (ODPC)",
+      "sovereignDataCenter": "Konza Technopolis Tier III",
+      "scores": {
+        "legal": 82,
+        "infrastructure": 88,
+        "cyberDefense": 86,
+        "innovation": 90
+      }
+    }
+  ]
+}

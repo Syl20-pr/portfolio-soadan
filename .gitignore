@@ -1,0 +1,41 @@
+# --- Secrets & configuration locale ---
+.env
+.env.local
+.env.*.local
+
+# --- Dépendances ---
+/vendor/
+composer.phar
+
+# --- Logs & cache ---
+/logs/
+*.log
+/cache/
+/tmp/
+
+# --- Sauvegardes & exports de base ---
+*.sql.gz
+*.dump
+/backups/
+# Base SQLite locale (développement) — jamais versionnée
+database/*.sqlite
+*.backup-*.sqlite
+
+# --- Système ---
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# --- Éditeurs ---
+.vscode/
+.idea/
+*.swp
+
+# --- Python (outils de génération du CV) ---
+__pycache__/
+*.pyc
+.venv/
+
+# --- Divers ---
+*.bak
+*.tmp
